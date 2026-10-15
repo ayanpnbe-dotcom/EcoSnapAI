@@ -10,6 +10,30 @@ const apiBase = "https://generativelanguage.googleapis.com/v1beta/models";
 const allowedMimeTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 const allowedCategories = new Set(["plastic", "paper", "metal", "glass", "organic", "hazardous", "unknown"]);
 const allowedStages = new Set(["identified", "sorted", "recovery", "reuse"]);
+const assessmentAnswerOptions = {
+  plastic: {
+    condition: ["intact", "cracked", "broken", "unknown"],
+    empty: ["yes", "no", "unknown"],
+    previousContents: ["water", "food", "cleaner", "other", "unknown"],
+  },
+  paper: {
+    condition: ["clean", "wet", "greasy", "unknown"],
+    coating: ["no", "yes", "unknown"],
+  },
+  metal: {
+    empty: ["yes", "no", "unknown"],
+    sharpEdges: ["no", "yes", "unknown"],
+    pressurized: ["no", "yes", "unknown"],
+  },
+  glass: {
+    condition: ["intact", "cracked", "broken", "unknown"],
+    empty: ["yes", "no", "unknown"],
+    previousContents: ["food", "drink", "chemical", "other", "unknown"],
+  },
+  organic: { contamination: ["no", "yes", "unknown"] },
+  hazardous: { hazardCondition: ["normal", "damaged", "swollen", "leaking", "hot", "unknown"] },
+  unknown: {},
+};
 const contentTypes = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
@@ -19,6 +43,7 @@ const contentTypes = {
   ".jpeg": "image/jpeg",
   ".png": "image/png",
   ".webp": "image/webp",
+  ".svg": "image/svg+xml; charset=utf-8",
 };
 
 function loadLocalEnvironment() {
@@ -221,6 +246,14 @@ function validateReportInput(input) {
         ? new Date(record.analysisAt).toISOString()
         : null,
       analysisModel: cleanText(record.analysisModel, "not recorded", 80),
+      userProvidedConditionAnswers: Object.fromEntries(
+        Object.entries(assessmentAnswerOptions[record.category])
+          .filter(([key, allowed]) => allowed.includes(record.assessment?.answers?.[key]))
+          .map(([key]) => [key, record.assessment.answers[key]])
+      ),
+      conditionAssessmentUpdatedAt: typeof record.assessment?.updatedAt === "string" && !Number.isNaN(Date.parse(record.assessment.updatedAt))
+        ? new Date(record.assessment.updatedAt).toISOString()
+        : null,
       events: Array.isArray(record.events)
         ? record.events.slice(0, 50).filter((event) =>
           event && allowedStages.has(event.status) && typeof event.at === "string" && !Number.isNaN(Date.parse(event.at))
@@ -338,6 +371,7 @@ Treat appearance as uncertain evidence, not proof. Never assert resin, compositi
     const modelResponse = await callGemini(
       `Write a concise, clear, item-focused Smart Recycling report in Markdown for EcoSnapAI.
 The sanitized JSON below is the complete source of saved-record facts. The original image is not sent with this report request. Image thumbnails are kept in the browser; describe only the recorded model fields as visual estimates. The app stores records in browser localStorage and uses a vanilla JavaScript frontend, a Node.js server with built-in modules and Gemini API calls server-side.
+Condition answers are explicitly user-provided self-reports, not AI-observed facts. Use them as personalization context and label them as user-provided. Never contradict or weaken the deterministic safety guidance shown in the browser for batteries, chemical contents, sharp/broken items, pressurized containers, damage, leakage, swelling, heat, or unknown contents. Never recommend opening, testing, repairing, or repurposing hazardous items. When condition information is uncertain, state the uncertainty and recommend human/local-authority review.
 Include: an executive summary using the exact saved-record and AI-estimate counts; one clearly labelled subsection for every saved item, with the actual category, item name, model confidence if available, visible material, condition, observed-evidence note, recorded preparation/reuse advice and recorded AI model/time if present; the actual event history and current journey stage for each record; practical next steps that do not pretend to know the user's local rules; safety and uncertainty warnings; environmental impact, weight and recovery values marked "Insufficient data to calculate" when missing; data provenance; limitations; and a final action checklist.
 If there are multiple saved items, include a compact itemized table, then use the individual record fields for details. If there is one item, prioritize its actual analysis details. If there are no records, state that plainly and do not invent an example. Use concise language and make the report useful to both ordinary users and hackathon judges.
 Every stage is a software simulation, not physical tracking. Event entries are user-interface records, not sensor evidence. There are no connected collection services, facilities, verified destinations, object bounding boxes, secondary predictions, measured weights, environmental calculation factors, or local recycling-rule lookups. Never infer those facts. Do not claim that any item was actually recycled, collected, reused, composted, diverted, or processed. Do not invent confidence, predictions, hazard facts, environmental statistics, user research, accuracy, deployments, costs, partnerships, or system capabilities. Distinguish AI estimates, manual reviews, and sample fixtures. Treat potentially hazardous or uncertain items conservatively; never recommend opening, burning, dismantling, or handling a damaged item.
@@ -365,10 +399,13 @@ Return JSON only in this exact shape: {"reportMarkdown":"...the complete Markdow
     }
     const verifiedRecordDetails = safeInput.records.length
       ? safeInput.records.map((record) => {
+        const conditionDetails = Object.keys(record.userProvidedConditionAnswers).length
+          ? ` User-provided condition answers (not AI observations): ${JSON.stringify(record.userProvidedConditionAnswers)}.`
+          : " No user-provided condition answers are recorded.";
         const aiDetails = record.aiEstimate
           ? ` AI estimate: material ${record.aiEstimate.material}; condition ${record.aiEstimate.condition}; confidence ${record.aiEstimate.confidence === null ? "not recorded" : `${Math.round(record.aiEstimate.confidence * 100)}%`}; human review ${record.aiEstimate.needsReview ? "recommended" : "not flagged"}; safety flag ${record.aiEstimate.hazardous ? "present" : "not flagged"}; next step ${record.aiEstimate.action}; preparation ${record.aiEstimate.preparation}; reuse ${record.aiEstimate.reuseOption}; visual note ${record.aiEstimate.explanation}.`
           : "";
-        return `- **${record.itemName}** — category: ${record.category}; lifecycle: ${record.status} (simulated); source: ${record.source}; events: ${record.eventCount}.${aiDetails}`;
+        return `- **${record.itemName}** — category: ${record.category}; lifecycle: ${record.status} (simulated); source: ${record.source}; events: ${record.eventCount}.${conditionDetails}${aiDetails}`;
       }).join("\n")
       : "- No browser records were supplied.";
     const report = `${reportMarkdown}\n\n## Validated browser record details\nThese details are included directly from the sanitized input records; lifecycle stages remain simulated.\n\n${verifiedRecordDetails}`.slice(0, 30000);

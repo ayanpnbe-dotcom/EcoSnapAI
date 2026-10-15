@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="Illustration of a clear glass jar">
+  <defs>
+    <linearGradient id="glass" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#b7d3cb" stop-opacity=".72"/>
+      <stop offset=".22" stop-color="#f8fffb" stop-opacity=".9"/>
+      <stop offset=".58" stop-color="#aac9c0" stop-opacity=".48"/>
+      <stop offset=".88" stop-color="#f8fffb" stop-opacity=".86"/>
+      <stop offset="1" stop-color="#9fbbb5" stop-opacity=".74"/>
+    </linearGradient>
+    <linearGradient id="lid" x1="0" x2="0" y1="0" y2="1">
+      <stop stop-color="#718c84"/>
+      <stop offset="1" stop-color="#435d57"/>
+    </linearGradient>
+    <filter id="shadow" x="-.4" y="-.25" width="1.8" height="1.7">
+      <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#344b44" flood-opacity=".24"/>
+    </filter>
+  </defs>
+  <rect width="100" height="100" rx="12" fill="#eee9df"/>
+  <ellipse cx="51" cy="84" rx="25" ry="5" fill="#827d72" opacity=".16"/>
+  <g filter="url(#shadow)">
+    <path d="M38 19h24v8l5 4c4 3 6 7 6 12v31c0 6-4 10-10 10H37c-6 0-10-4-10-10V43c0-5 2-9 6-12l5-4z" fill="url(#glass)" stroke="#748e87" stroke-width="2"/>
+    <path d="M38 20h24v8H38z" fill="url(#lid)" stroke="#435d57" stroke-width="1.5"/>
+    <path d="M35 43c0-4 2-7 5-9m-9 14v23c0 4 2 6 5 7" fill="none" stroke="#fff" stroke-linecap="round" stroke-width="3" opacity=".82"/>
+    <path d="M68 45v26c0 4-2 6-5 7" fill="none" stroke="#72928a" stroke-linecap="round" stroke-width="2" opacity=".64"/>
+    <path d="M37 59h28" stroke="#fff" stroke-width="2" opacity=".36"/>
+  </g>
+</svg>

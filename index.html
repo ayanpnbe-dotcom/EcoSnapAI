@@ -127,12 +127,12 @@
               <div class="control-block">
                 <div class="control-title"><span>Choose a demo item</span><span class="demo-badge">SAMPLE DATA</span></div>
                 <div class="sample-grid" role="group" aria-label="Choose a sample material">
-                  <button class="sample-button active" type="button" data-sample="plastic" aria-pressed="true"><span>♧</span><b>Plastic bottle</b><small>Packaging</small></button>
-                  <button class="sample-button" type="button" data-sample="paper" aria-pressed="false"><span>▤</span><b>Cardboard</b><small>Paper</small></button>
-                  <button class="sample-button" type="button" data-sample="metal" aria-pressed="false"><span>▱</span><b>Metal can</b><small>Container</small></button>
-                  <button class="sample-button" type="button" data-sample="glass" aria-pressed="false"><span>◯</span><b>Glass jar</b><small>Container</small></button>
-                  <button class="sample-button" type="button" data-sample="organic" aria-pressed="false"><span>◒</span><b>Food scraps</b><small>Organic</small></button>
-                  <button class="sample-button" type="button" data-sample="hazardous" aria-pressed="false"><span>⚠</span><b>Battery</b><small>Special handling</small></button>
+                  <button class="sample-button active" type="button" data-sample="plastic" aria-pressed="true"><img src="./assets/sample-plastic.jpg" alt="" aria-hidden="true" /><b>Plastic bottle</b><small>Packaging</small></button>
+                  <button class="sample-button" type="button" data-sample="paper" aria-pressed="false"><img src="./assets/sample-paper.jpg" alt="" aria-hidden="true" /><b>Cardboard</b><small>Paper</small></button>
+                  <button class="sample-button" type="button" data-sample="metal" aria-pressed="false"><img src="./assets/sample-metal.jpg" alt="" aria-hidden="true" /><b>Metal can</b><small>Container</small></button>
+                  <button class="sample-button" type="button" data-sample="glass" aria-pressed="false"><img src="./assets/sample-glass.svg" alt="" aria-hidden="true" /><b>Glass jar</b><small>Container</small></button>
+                  <button class="sample-button" type="button" data-sample="organic" aria-pressed="false"><img src="./assets/sample-organic.jpg" alt="" aria-hidden="true" /><b>Food scraps</b><small>Organic</small></button>
+                  <button class="sample-button" type="button" data-sample="hazardous" aria-pressed="false"><img src="./assets/sample-hazardous.jpg" alt="" aria-hidden="true" /><b>Battery</b><small>Special handling</small></button>
                 </div>
               </div>
               <div class="photo-options" role="group" aria-label="Add an item photo">
@@ -188,6 +188,13 @@
                 <p class="rule-source" id="rule-source">Prototype rule · Campus demo rules (unverified)</p>
                 <div class="explanation" id="explanation" hidden></div>
                 <details class="ai-report" id="ai-report" hidden><summary>AI item report</summary><div id="ai-report-content"></div></details>
+                <section class="assessment-panel" id="assessment-panel" aria-labelledby="assessment-title">
+                  <div class="assessment-heading"><div><span class="overline">YOUR ITEM DETAILS</span><h4 id="assessment-title">A few details can change the advice</h4></div><span class="assessment-origin">Answers are user-provided</span></div>
+                  <p class="assessment-intro">Choose what you know. “Not sure” is always okay; this prototype does not verify local collection rules.</p>
+                  <div class="assessment-questions" id="assessment-questions"></div>
+                  <div class="assessment-guidance" id="assessment-guidance" aria-live="polite"></div>
+                  <div class="property-tags" id="property-tags" aria-label="Waste properties"></div>
+                </section>
                 <div class="result-actions"><button class="button button-dark" id="save-scan" type="button">Save to my twin <span aria-hidden="true">↗</span></button><button class="plain-button" id="explain-scan" type="button">Explain this choice</button></div>
                 <p class="result-disclaimer" id="result-disclaimer">Sample output for demonstration. Not a live computer-vision prediction or verified local disposal advice.</p>
               </div>
@@ -235,11 +242,11 @@
           <div class="category-breakdown" id="category-breakdown"><p class="breakdown-empty">Your material categories will appear here after your first scan.</p></div>
         </section>
         <section class="project-report" aria-labelledby="project-report-title">
-          <div class="project-report-copy"><span class="overline">HACKATHON REPORT</span><h3 id="project-report-title">Turn your analysis into a report.</h3><p>Generate a polished report from this browser’s saved image analyses, AI confidence, recommendations and material-twin events. Photos stay local; environmental outcomes and local disposal rules are never guessed.</p><span class="report-model-note" id="report-model-note">Report data comes from saved records · offline report is always available</span></div>
+          <div class="project-report-copy"><span class="overline">HACKATHON REPORT</span><h3 id="project-report-title">Turn your analysis into a report.</h3><p>Generate a polished report from this browser’s saved image analyses, user-provided condition answers, AI confidence, recommendations and material-twin events. For a smart report, validated condition answers are sent to Gemini as self-reported context; photos stay local. Environmental outcomes and local disposal rules are never guessed.</p><span class="report-model-note" id="report-model-note">Report data comes from saved records · offline report is always available</span></div>
           <div class="project-report-actions"><button class="button button-dark" type="button" id="generate-report"><span>✳</span> Generate smart report</button><button class="utility-button" type="button" id="generate-offline-report">Build offline report</button><span class="report-estimate">AI narrative is optional · saved analysis remains available offline</span></div>
         </section>
         <div class="report-output" id="report-output" hidden aria-live="polite" tabindex="-1">
-          <div class="report-output-head"><div><span class="overline">YOUR ECOSNAPAI REPORT</span><span id="report-meta"></span><div class="report-run-meta">Report <code id="report-id"></code><span id="report-generated-at"></span></div></div><div class="report-actions"><button class="utility-button" type="button" id="preview-report">Preview report</button><button class="utility-button" type="button" id="print-report">Print / Save PDF</button><button class="utility-button" type="button" id="download-report-json">Download data JSON</button><button class="utility-button" type="button" id="copy-report">Copy report</button><button class="utility-button" type="button" id="download-report">Download .md</button></div></div>
+          <div class="report-output-head"><div><span class="overline">YOUR ECOSNAPAI REPORT</span><span id="report-meta"></span><div class="report-run-meta">Report <code id="report-id"></code><span id="report-generated-at"></span></div></div><div class="report-actions"><button class="utility-button" type="button" id="preview-report">Preview report</button><button class="utility-button" type="button" id="print-report">Print / Save PDF</button><button class="utility-button" type="button" id="download-report-json">Download data JSON</button><button class="utility-button" type="button" id="copy-report">Copy report</button><button class="utility-button" type="button" id="download-report">Download .md</button><button class="utility-button" type="button" id="download-all-item-reports">Download all item reports (.zip)</button></div></div>
           <p class="report-error" id="report-error" role="alert" hidden></p>
           <div id="report-dashboard"></div>
         </div>

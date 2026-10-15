@@ -66,6 +66,34 @@ const categories = {
 
 const stageOrder = ["identified", "sorted", "recovery", "reuse"];
 const stageLabels = { identified: "Identified", sorted: "Sorted", recovery: "Recovery", reuse: "Reuse" };
+const assessmentQuestions = {
+  plastic: [
+    { key: "condition", label: "What condition is the bottle or packaging in?", options: [["intact", "Intact"], ["cracked", "Cracked"], ["broken", "Broken / sharp"], ["unknown", "Not sure"]] },
+    { key: "empty", label: "Is it empty?", options: [["yes", "Yes"], ["no", "No"], ["unknown", "Not sure"]] },
+    { key: "previousContents", label: "What did it contain?", options: [["water", "Water / drink"], ["food", "Food"], ["cleaner", "Cleaning product or chemical"], ["other", "Something else"], ["unknown", "Not sure"]] },
+  ],
+  glass: [
+    { key: "condition", label: "What condition is the glass item in?", options: [["intact", "Intact"], ["cracked", "Cracked"], ["broken", "Broken / sharp"], ["unknown", "Not sure"]] },
+    { key: "empty", label: "Is it empty?", options: [["yes", "Yes"], ["no", "No"], ["unknown", "Not sure"]] },
+    { key: "previousContents", label: "What did it contain?", options: [["food", "Food"], ["drink", "Drink"], ["chemical", "Chemical or medicine"], ["other", "Something else"], ["unknown", "Not sure"]] },
+  ],
+  paper: [
+    { key: "condition", label: "How does the paper or cardboard look?", options: [["clean", "Clean and dry"], ["wet", "Wet"], ["greasy", "Greasy / food-soiled"], ["unknown", "Not sure"]] },
+    { key: "coating", label: "Does it appear coated or laminated?", options: [["no", "No / not visibly coated"], ["yes", "Yes"], ["unknown", "Not sure"]] },
+  ],
+  metal: [
+    { key: "empty", label: "Is the container empty?", options: [["yes", "Yes"], ["no", "No"], ["unknown", "Not sure"]] },
+    { key: "sharpEdges", label: "Does it have sharp edges?", options: [["no", "No"], ["yes", "Yes"], ["unknown", "Not sure"]] },
+    { key: "pressurized", label: "Could it be pressurized (for example, an aerosol can)?", options: [["no", "No"], ["yes", "Yes"], ["unknown", "Not sure"]] },
+  ],
+  hazardous: [
+    { key: "hazardCondition", label: "What condition is the battery or electronic item in?", options: [["normal", "Looks intact / normal"], ["damaged", "Damaged"], ["swollen", "Swollen"], ["leaking", "Leaking"], ["hot", "Unusually hot"], ["unknown", "Not sure"]] },
+  ],
+  organic: [
+    { key: "contamination", label: "Is it mixed with packaging or other materials?", options: [["no", "No, food/yard scraps only"], ["yes", "Yes"], ["unknown", "Not sure"]] },
+  ],
+  unknown: [],
+};
 const storageKey = "ecosnapai-material-records-v1";
 const themeStorageKey = "ecosnapai-theme-v1";
 const themeOrder = ["light", "dark", "3d"];
@@ -85,6 +113,9 @@ let currentAnalysisModel = "";
 let currentAnalysisAt = "";
 let currentReportThumbnail = "";
 let generatedReport = "";
+let reportBaseText = "";
+let reportMetaText = "";
+let currentAssessmentAnswers = {};
 let modelConfigured = false;
 let records = [];
 let toastTimer;
@@ -309,6 +340,12 @@ function loadRecords() {
           !/^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/.test(record.photoThumbnail) ||
           record.photoThumbnail.length > 70000)) ||
       !["sample", "manual-review", "ai-model"].includes(record.source) ||
+      (record.assessment !== undefined && (
+        !record.assessment || typeof record.assessment !== "object" ||
+        !record.assessment.answers || typeof record.assessment.answers !== "object" ||
+        Array.isArray(record.assessment.answers) ||
+        Object.values(record.assessment.answers).some((answer) => typeof answer !== "string")
+      )) ||
       !record.events.every((entry) =>
         entry && stageOrder.includes(entry.status) && typeof entry.at === "string" &&
         !Number.isNaN(Date.parse(entry.at)) && typeof entry.note === "string"
@@ -342,6 +379,7 @@ function setSample(category) {
     currentPhotoUrl = "";
   }
   currentCategory = category;
+  currentAssessmentAnswers = {};
   currentIsSample = true;
   currentSource = "sample";
   currentAiAnalysis = null;
@@ -413,6 +451,7 @@ function renderResult() {
   }
   $("#explanation").hidden = true;
   $("#explanation").textContent = "";
+  renderAssessmentPanel();
 }
 
 function handlePhoto(file) {
@@ -436,6 +475,7 @@ function handlePhoto(file) {
   currentPhotoName = file.name;
   currentPhotoFile = file;
   currentCategory = "unknown";
+  currentAssessmentAnswers = {};
   currentIsSample = false;
   currentSource = "manual-review";
   currentAiAnalysis = null;
@@ -462,6 +502,7 @@ function handlePhoto(file) {
 }
 
 function reviewPhoto() {
+  if (currentCategory !== $("#manual-category").value) currentAssessmentAnswers = {};
   currentCategory = $("#manual-category").value;
   currentIsSample = false;
   currentSource = "manual-review";
@@ -494,6 +535,7 @@ function saveScan() {
     analysisAt: currentSource === "ai-model" ? currentAnalysisAt : null,
     analysisModel: currentSource === "ai-model" ? currentAnalysisModel : null,
     photoThumbnail: currentSource === "ai-model" ? currentReportThumbnail : "",
+    assessment: assessCondition(currentCategory, currentAssessmentAnswers),
     aiSummary: currentAiAnalysis ? {
       itemName: currentAiAnalysis.itemName,
       material: currentAiAnalysis.material,
@@ -583,6 +625,279 @@ function escapeHtml(value) {
     '"': "&quot;",
     "'": "&#39;",
   })[character]);
+}
+
+function renderAssessmentQuestions(category, answers = {}, prefix = "assessment") {
+  const questions = assessmentQuestions[category] || [];
+  if (!questions.length) {
+    return '<p class="assessment-no-questions">No item-specific questions are available until a category is selected. Select “Needs review” if you cannot identify it.</p>';
+  }
+  return questions.map((question) => {
+    const options = [
+      '<option value="">Not provided</option>',
+      ...question.options.map(([value, label]) =>
+        `<option value="${value}"${answers[question.key] === value ? " selected" : ""}>${label}</option>`
+      ),
+    ].join("");
+    const id = `${prefix}-${question.key}`.replace(/[^A-Za-z0-9_-]/g, "-");
+    return `<label class="assessment-question" for="${id}"><span>${escapeHtml(question.label)}</span><select id="${id}" data-assessment-key="${question.key}">${options}</select></label>`;
+  }).join("");
+}
+
+function assessCondition(category, answers = {}) {
+  const tags = [];
+  const addTag = (label, explanation, source = "Material category · prototype guidance") => {
+    if (!tags.some((tag) => tag.label === label)) tags.push({ label, explanation, source });
+  };
+  const condition = answers.condition || "not-provided";
+  const previousContents = answers.previousContents || "not-provided";
+  const uncertain = (value) => !value || value === "unknown";
+  let action = "No disposal action suggested until the item is identified.";
+  let preparation = "Not provided; identify the item and check local guidance.";
+  let reuse = "Not assessed.";
+  let alternative = "Ask your local waste service; no local facility directory is connected.";
+  let explanation = categories[category]?.explanation || categories.unknown.explanation;
+  let safetyWarnings = [];
+  let manualReview = category === "unknown";
+  let classification = [];
+  const missingFields = [];
+
+  if (category === "plastic" || category === "glass") {
+    addTag("Recycling acceptance varies locally", "This material category can have recycling pathways, but acceptance depends on local rules, format, and condition; no municipal rules source is connected.");
+    if (uncertain(previousContents)) {
+      manualReview = true;
+      missingFields.push("Previous contents: not provided or not sure; do not infer safe reuse or rinsing.");
+      addTag("Needs review", "Previous contents are unknown. Avoid reuse or rinsing until the contents are known; the visual model cannot identify chemical composition.", "User answer · previous contents");
+    } else if (["cleaner", "chemical"].includes(previousContents)) {
+      manualReview = true;
+      safetyWarnings.push("The user reports chemical or cleaning-product contents. Do not reuse for food or drink; follow product and local hazardous-waste guidance.");
+      addTag("Potentially hazardous", "The user reported chemical/cleaning-product contents. This is a precaution based on that answer, not a chemical identification.", "User answer · previous contents");
+      reuse = "Not recommended for food or drink; do not repurpose if chemical residue or contents are uncertain.";
+    }
+    if (uncertain(condition)) {
+      manualReview = true;
+      missingFields.push("Item condition: not provided or not sure.");
+      action = "Condition has not been confirmed. Do not infer safe reuse; identify the contents and condition, then check local acceptance.";
+    }
+    if (condition === "broken" || condition === "cracked") {
+      safetyWarnings.push(category === "glass"
+        ? "Cracked or broken glass can cut. Do not handle fragments; keep people and pets away and follow local safety guidance."
+        : "Cracked or broken packaging may have sharp edges. Avoid handling sharp pieces.");
+      addTag("Sharp / broken", "Condition was reported by the user; handle only as local safety guidance advises.", "User answer · item condition");
+      reuse = "Not a reuse candidate while cracked or broken.";
+      if (category === "glass" && condition === "broken") action = "Keep people and pets away from fragments; do not put loose broken glass in recycling. Check local safe-disposal instructions.";
+      else action = "Do not reuse damaged packaging. Check local guidance for safe recycling or disposal.";
+    } else if (category === "glass" && condition === "cracked") {
+      action = "Avoid handling the cracked container; it may break. Follow local safe-disposal guidance rather than placing it in a recycling bin.";
+    } else if (category === "glass" && condition === "intact" && ["food", "drink", "water"].includes(previousContents)) {
+      reuse = "Reuse candidate: if clean and intact, it may be suitable for storage. Confirm it is food-safe for the intended use.";
+      action = answers.empty === "yes"
+        ? "If clean and empty, reuse for suitable storage or check local glass collection acceptance."
+        : "Empty only if contents are known and safe; then clean for suitable storage or check local glass collection acceptance.";
+      preparation = "Clean only when contents are known and safe; confirm food-safety and local collection guidance.";
+      addTag("Reuse candidate", "The user reports an intact item with known food/drink contents. Suitability for a specific reuse is not certified.", "User answers · condition and previous contents");
+    } else if (category === "plastic" && condition === "intact" && ["water", "food"].includes(previousContents)) {
+      reuse = "Possible non-food reuse only if clean and intact; do not assume a bottle is suitable for repeated food or drink use.";
+      action = answers.empty === "yes"
+        ? "If empty and safe to rinse, prepare it as local guidance requires and check acceptance for this packaging."
+        : "Empty and rinse only when contents are known and safe; check local acceptance before recycling.";
+      preparation = "Rinse only if contents are known and safe. Do not reuse it for repeated food/drink without verified food-safety information.";
+      addTag("Reuse candidate", "The user reports an intact package with known contents. Repeated food/drink safety is not confirmed.", "User answers · condition and previous contents");
+    } else if (condition === "intact") {
+      action = "If empty and safe to rinse, prepare it as local guidance requires, then check whether the local program accepts this format.";
+      preparation = answers.empty === "yes" ? "User reports it is empty. Rinse only if the previous contents are known and safe; follow local preparation rules." : "Empty and rinse only if contents are known and safe; do not handle or rinse unknown chemical contents.";
+    }
+    if (uncertain(answers.empty)) missingFields.push("Whether the container is empty: not provided or not sure.");
+    if (category === "glass" && condition === "intact" && !["food", "drink", "water"].includes(previousContents)) {
+      reuse = "Not confirmed; previous contents or intended reuse may make repurposing unsuitable.";
+    }
+    if (uncertain(previousContents) && condition !== "broken" && condition !== "cracked") {
+      action = "Contents are unknown. Do not rinse or reuse until they can be identified safely; check local guidance.";
+      preparation = "Do not empty or rinse unknown contents. Identify them safely and seek local guidance.";
+    }
+    if (category === "plastic" || category === "glass") {
+      classification.push(condition === "broken" || condition === "cracked"
+        ? "Recyclable status unknown until safe handling and local guidance are confirmed"
+        : "Recyclable candidate · local acceptance unverified");
+    }
+    if (reuse.startsWith("Reuse candidate") || reuse.startsWith("Possible")) classification.push("Reuse possibility · suitability not certified");
+  } else if (category === "paper") {
+    addTag("Recycling acceptance varies locally", "Paper acceptance depends on local rules, coating, and condition; no local collection rules are connected.");
+    if (uncertain(condition)) {
+      missingFields.push("Paper/cardboard cleanliness and dryness: not provided or not sure.");
+      manualReview = true;
+      action = "Condition has not been confirmed. Keep it separate until you can check whether it is clean, dry, greasy, or coated.";
+    } else if (condition === "clean") {
+      action = "Keep it clean and dry, flatten it if useful, and check local paper/cardboard acceptance.";
+      preparation = "Flatten if practical; remove non-paper parts only when easy and safe.";
+      reuse = "Reuse or store it for packing if clean and dry.";
+      classification.push("Recyclable candidate · local acceptance unverified");
+      classification.push("Reuse possibility · clean/dry packing only");
+      addTag("Reuse candidate", "Clean, dry paper/cardboard may be reused for packing; user condition answer.", "User answer · cleanliness");
+    } else {
+      manualReview = true;
+      action = condition === "greasy"
+        ? "Keep greasy cardboard out of paper recycling. Compost only if a local service explicitly accepts it; otherwise check local waste guidance."
+        : "Wet or uncertain paper may not be accepted with dry paper. Let it dry only if uncontaminated, then check local guidance.";
+      preparation = "Separate from clean paper; do not assume greasy or wet paper is recyclable or compostable.";
+      addTag("Needs review", "Wetness or grease can change collection acceptance; the local rule is not available.", "User answer · cleanliness");
+      addTag("Compostability not confirmed", "Paper/cardboard compostability depends on coatings, contamination, and the composting service; none is confirmed here.");
+      if (condition === "greasy") missingFields.push("Grease type and local compost acceptance are unknown.");
+    }
+    if (answers.coating === "yes") {
+      addTag("Needs review", "User reports a coating. Coating type and effect on recyclability/compostability are not identified.", "User answer · coating");
+      missingFields.push("Coating material is not identified.");
+      manualReview = true;
+    } else if (uncertain(answers.coating)) {
+      missingFields.push("Whether the paper is coated: not provided or not sure.");
+    }
+  } else if (category === "metal") {
+    addTag("Recycling acceptance varies locally", "Metal recycling pathways and preparation depend on the item and local rules; material composition is not verified.");
+    classification.push("Recyclable candidate · item type and local acceptance unverified");
+    if (answers.pressurized === "yes") {
+      manualReview = true;
+      action = "Do not puncture, crush, heat, or place a pressurized container in a general recycling stream. Check an appropriate local collection service.";
+      preparation = "Keep away from heat and do not puncture or crush.";
+      safetyWarnings.push("User reports the container may be pressurized. Do not puncture, crush, or heat it.");
+      addTag("Potentially hazardous", "User reports possible pressurization; this is a precaution, not a verified container diagnosis.", "User answer · pressurization");
+    } else if (answers.sharpEdges === "yes") {
+      action = "Avoid sharp edges and follow local guidance for safe metal collection or disposal.";
+      safetyWarnings.push("User reports sharp edges. Avoid handling the sharp area.");
+      addTag("Sharp / broken", "Sharp edges were reported by the user.", "User answer · sharp edges");
+    } else {
+      action = "If empty and safe to handle, check whether local collection accepts this type of metal container.";
+      preparation = answers.empty === "yes" ? "User reports it is empty; rinse only if safe and accepted locally." : "Empty only if safe; do not handle unknown contents.";
+    }
+    if (uncertain(answers.empty)) missingFields.push("Whether the container is empty: not provided or not sure.");
+    if (uncertain(answers.sharpEdges)) missingFields.push("Sharp edges: not provided or not sure.");
+    if (uncertain(answers.pressurized)) missingFields.push("Pressurization: not provided or not sure.");
+    if (uncertain(answers.pressurized) || uncertain(answers.sharpEdges)) manualReview = true;
+  } else if (category === "hazardous") {
+    classification.push("Potentially hazardous · conservative category rule");
+    addTag("Potentially hazardous", "Battery/electronics category follows a conservative special-handling rule; this is not a visual hazard diagnosis.");
+    action = "Keep batteries/electronics out of household recycling and general waste; check an authorized local collection point. No facility is verified by this site.";
+    preparation = "Do not open, test, dismantle, repair, or repurpose. For damaged, swollen, leaking, or hot items, avoid handling and seek appropriate local safety guidance.";
+    reuse = "Never open, test, repair, or repurpose a battery or hazardous item.";
+    alternative = "If no authorized local collection is known, contact your local waste authority for safe handling advice.";
+    if (answers.hazardCondition && answers.hazardCondition !== "normal" && answers.hazardCondition !== "unknown") {
+      safetyWarnings.push(`User reports the item is ${answers.hazardCondition}. Avoid handling it; seek appropriate local safety guidance.`);
+      addTag("Needs review", "Reported damage or abnormal heat requires human/safety review; this is user-provided, not an AI diagnosis.", "User answer · item condition");
+      manualReview = true;
+    } else if (uncertain(answers.hazardCondition)) {
+      missingFields.push("Battery/electronics condition: not provided or not sure.");
+      manualReview = true;
+    }
+  } else if (category === "organic") {
+    classification.push("Biodegradable material category · property not certified");
+    addTag("Biodegradable", "Identified as organic/food scraps by the sample or review category. This is not a laboratory or certification result.");
+    addTag("Compostability not confirmed", "Home versus industrial compostability and local acceptance are not established.");
+    action = "Use a locally approved food-waste or compost service if one accepts this material; otherwise check local waste guidance.";
+    preparation = "Keep separate from packaging and follow the service's accepted-material and preparation rules.";
+    if (answers.contamination === "yes") {
+      addTag("Needs review", "User reports mixed materials; separate only when safe and follow local service rules.", "User answer · mixed materials");
+      manualReview = true;
+    } else if (uncertain(answers.contamination)) missingFields.push("Whether packaging or other materials are mixed in: not provided or not sure.");
+  } else {
+    addTag("Needs review", "The item category is unknown; no material or disposal property is inferred.", "Classification · unknown");
+    missingFields.push("Recognized material/category is unavailable.");
+  }
+
+  if (category === "unknown" || manualReview) addTag("Needs review", "One or more important details are uncertain or require human review.");
+  if (category !== "unknown" && category !== "hazardous" && category !== "organic" && !classification.some((entry) => entry.startsWith("Recyclable"))) {
+    classification.unshift("Recyclable status unknown");
+  }
+  if (uncertain(answers.condition) && assessmentQuestions[category]?.some((question) => question.key === "condition")) {
+    missingFields.push("Condition not confirmed by the user.");
+  }
+  if (category === "glass" && answers.empty === "no") {
+    preparation = "Do not pour out unknown contents. Identify contents and follow appropriate safety/local guidance.";
+    manualReview = true;
+    addTag("Needs review", "Contents remain in the container; contents and safe handling are unknown.", "User answer · container not empty");
+  }
+  if (category === "plastic" && answers.empty === "no" && uncertain(previousContents)) {
+    preparation = "Do not empty or rinse unknown contents. Identify them safely and seek local guidance.";
+    manualReview = true;
+    addTag("Needs review", "The container is not empty and contents are unknown; do not empty or rinse it.", "User answers · not empty and contents unknown");
+  }
+
+  if (category === "unknown") action = "Do not guess. Identify the item or ask your local waste service before disposal.";
+  if (!safetyWarnings.length && category === "hazardous") safetyWarnings.push("Keep out of household recycling and general waste; do not open, test, or dismantle.");
+  if (uncertain(answers.empty) && assessmentQuestions[category]?.some((question) => question.key === "empty")) {
+    missingFields.push("Empty status not confirmed by the user.");
+  }
+  return {
+    answers: { ...answers },
+    updatedAt: new Date().toISOString(),
+    source: "Transparent local condition rules · user answers are not AI observations",
+    classification,
+    tags,
+    action,
+    preparation,
+    reuse,
+    alternative,
+    explanation,
+    safetyWarnings,
+    manualReview,
+    missingFields: [...new Set(missingFields)],
+    localRuleDependency: "Local collection acceptance and facilities are not connected or verified.",
+  };
+}
+
+function renderAssessmentPanel(renderQuestions = true) {
+  const answers = currentAssessmentAnswers;
+  if (renderQuestions) $("#assessment-questions").innerHTML = renderAssessmentQuestions(currentCategory, answers, "scan-assessment");
+  const assessment = assessCondition(currentCategory, answers);
+  if (Object.values(answers).some(Boolean) || currentCategory === "hazardous" || currentCategory === "unknown") {
+    $("#result-advice").textContent = assessment.action;
+    $("#rule-source").textContent = "Transparent condition rules · material category plus user-provided answers · local acceptance unverified";
+  } else {
+    const configuredLocation = $("#location-select").value !== "unconfigured";
+    $("#result-advice").textContent = currentAiAnalysis
+      ? currentAiAnalysis.action
+      : !configuredLocation
+        ? "Local rules are not configured for this location. Use a local authority's guidance before disposing of this item."
+        : categories[currentCategory].advice;
+    $("#rule-source").textContent = currentAiAnalysis
+      ? "Gemini visual estimate · not a verified local recycling rule"
+      : !configuredLocation
+        ? "No applicable local rule configured · location-specific advice withheld"
+        : "Prototype rule · Campus demo rules (unverified)";
+  }
+  const status = assessment.manualReview ? "Human review suggested" : "Rule-based guidance";
+  $("#assessment-guidance").innerHTML = `<p><strong>${status}</strong> <span>· Based on the reviewed category and user-provided answers</span></p><dl><div><dt>Suggested action</dt><dd>${escapeHtml(assessment.action)}</dd></div><div><dt>Preparation</dt><dd>${escapeHtml(assessment.preparation)}</dd></div><div><dt>Reuse idea</dt><dd>${escapeHtml(assessment.reuse)}</dd></div><div><dt>If unavailable</dt><dd>${escapeHtml(assessment.alternative)}</dd></div></dl>${assessment.safetyWarnings.map((warning) => `<p class="assessment-safety" role="alert"><strong>Safety:</strong> ${escapeHtml(warning)}</p>`).join("")}`;
+  $("#property-tags").innerHTML = assessment.tags.map((tag) =>
+    `<details class="property-tag"><summary><span aria-hidden="true">◇</span> ${escapeHtml(tag.label)}</summary><p>${escapeHtml(tag.explanation)}</p><small>Source: ${escapeHtml(tag.source)}</small></details>`
+  ).join("");
+}
+
+function renderSavedAssessment(record) {
+  const answers = record.assessment?.answers || {};
+  const assessment = assessmentForRecord(record);
+  const tags = (assessment.tags || []).map((tag) =>
+    `<details class="property-tag"><summary><span aria-hidden="true">◇</span> ${escapeHtml(tag.label)}</summary><p>${escapeHtml(tag.explanation)}</p><small>Source: ${escapeHtml(tag.source)}</small></details>`
+  ).join("");
+  return `<details class="saved-assessment"><summary>Condition assessment · ${assessment.updatedAt ? `updated ${escapeHtml(new Date(assessment.updatedAt).toLocaleDateString())}` : "not yet completed"} <span>Review or edit answers</span></summary><div class="saved-assessment-content"><p class="assessment-origin">Answers are user-provided; Gemini estimates are stored separately.</p><div class="assessment-questions">${renderAssessmentQuestions(record.category, answers, `record-${record.id}`)}</div><div class="property-tags">${tags}</div><button type="button" class="utility-button save-assessment-button" data-save-assessment="${escapeHtml(record.id)}">Save updated assessment</button></div></details>`;
+}
+
+function saveUpdatedAssessment(id, row) {
+  const record = records.find((entry) => entry.id === id);
+  if (!record) {
+    announce("That material record could not be found.");
+    return;
+  }
+  const answers = {};
+  row.querySelectorAll("[data-assessment-key]").forEach((select) => {
+    if (select.value) answers[select.dataset.assessmentKey] = select.value;
+  });
+  const previousAssessment = record.assessment;
+  record.assessment = assessCondition(record.category, answers);
+  if (!persistRecords()) {
+    record.assessment = previousAssessment;
+    return;
+  }
+  renderDashboard();
+  if (!$("#report-output").hidden) refreshGeneratedReport();
+  announce("User-provided condition answers and guidance were updated in this browser.");
 }
 
 function renderDashboard() {
@@ -676,6 +991,7 @@ function renderDashboard() {
     actions.className = "row-actions";
     actions.append(action, remove);
     row.append(name, date, location, status, actions, history);
+    row.insertAdjacentHTML("beforeend", renderSavedAssessment(record));
     list.append(row);
   });
 }
@@ -965,18 +1281,147 @@ async function analyzePhoto() {
   }
 }
 
+function assessmentForRecord(record) {
+  const answers = record.assessment?.answers || {};
+  return {
+    ...assessCondition(record.category, answers),
+    updatedAt: record.assessment?.updatedAt || null,
+  };
+}
+
+function itemReportMarkdown(record, generatedAt = new Date().toISOString()) {
+  const category = categories[record.category];
+  const assessment = assessmentForRecord(record);
+  const estimate = record.aiSummary;
+  const questionRows = (assessmentQuestions[record.category] || []).map((question) => {
+    const value = record.assessment?.answers?.[question.key];
+    const option = question.options.find(([key]) => key === value);
+    return `- ${reportSafeLine(question.label)}: ${option ? option[1] : "Not provided"}`;
+  });
+  const classification = assessment.classification.length ? assessment.classification.join("; ") : "Unknown";
+  const tags = assessment.tags.length
+    ? assessment.tags.map((tag) => `- **${reportSafeLine(tag.label)}:** ${reportSafeLine(tag.explanation)} (Source: ${reportSafeLine(tag.source)})`).join("\n")
+    : "- None established.";
+  const events = [...record.events].sort((left, right) => Date.parse(left.at) - Date.parse(right.at))
+    .map((event) => `- ${new Date(event.at).toISOString()} — ${stageLabels[event.status]} (simulated): ${reportSafeLine(event.note)}; quantity/weight: Unknown.`)
+    .join("\n") || "- No events recorded.";
+  const safety = assessment.safetyWarnings.length
+    ? assessment.safetyWarnings.map((warning) => `- ${reportSafeLine(warning)}`).join("\n")
+    : "- No condition-specific warning recorded; general handling and local guidance still apply.";
+  const missing = [...assessment.missingFields, "Weight/quantity, previous/next destination, handler, local facility, per-stage weight, and environmental factors were not collected."]
+    .map((field) => `- ${reportSafeLine(field)}`).join("\n");
+  const image = record.photoThumbnail
+    ? `![Saved small item image thumbnail](${record.photoThumbnail})\n\n*Stored thumbnail from this browser; it is not a full-resolution image.*`
+    : "Not provided or not retained in the browser.";
+  const answerDetails = questionRows.length ? questionRows.join("\n") : "- No category-specific questions available; category needs human review.";
+  const humanReview = assessment.manualReview || record.source === "manual-review"
+    ? "Suggested / manual review required"
+    : "Not recorded as reviewed by a human";
+  const hasUserAnswers = Object.values(record.assessment?.answers || {}).some(Boolean);
+  const responseCondition = hasUserAnswers
+    ? `User-provided condition details are stored separately from the visual estimate.\n\n${answerDetails}`
+    : `Not provided; older record has no condition questionnaire answers.\n\n${answerDetails}`;
+  return [
+    `# Per-item material assessment — ${reportSafeLine(record.itemName) || "Unidentified item"}`,
+    "",
+    `**Item report ID:** ECO-ITEM-${reportSafeLine(record.id)}`,
+    `**Report generated:** ${new Date(generatedAt).toISOString()} · Markdown`,
+    "",
+    "## Scan and identification",
+    `- Item / Digital Twin tracking ID: ${reportSafeLine(record.id)}`,
+    `- Scan date/time: ${record.createdAt ? new Date(record.createdAt).toISOString() : "Unknown"}`,
+    `- Item image: ${image}`,
+    `- Recognized item name / category: ${reportSafeLine(record.itemName)} / ${category.label}`,
+    `- Predicted material(s): ${estimate?.material ? reportSafeLine(estimate.material) : "Unknown / not confirmed"}`,
+    `- Recognition confidence: ${Number.isFinite(estimate?.confidence) ? `${Math.round(estimate.confidence * 100)}% (AI estimate; not measured accuracy)` : "Unknown / no model score recorded"}`,
+    `- Classification summary: ${classification}`,
+    `- Recyclable: ${assessment.classification.some((entry) => entry.startsWith("Recyclable")) ? "Candidate only; local acceptance unverified" : "Unknown / not confirmed"}`,
+    `- Reusable: ${assessment.classification.some((entry) => entry.startsWith("Reuse")) ? "Possible; suitability not certified" : "Not confirmed"}`,
+    `- Biodegradable: ${record.category === "organic" ? "Organic material category; not certified" : "Unknown / not established"}`,
+    `- Potentially hazardous: ${assessment.tags.some((tag) => tag.label === "Potentially hazardous") ? "Yes / precautionary" : "Not identified; this is not proof of harmlessness"}`,
+    `- Uncertainty / manual-review flag: ${assessment.manualReview || estimate?.needsReview || record.category === "unknown" ? "Review suggested" : "No flag stored; AI output remains an estimate"}`,
+    `- AI-estimated condition (separate from user answers): ${estimate?.condition ? reportSafeLine(estimate.condition) : "Unknown / not estimated"}`,
+    "",
+    "## Condition and preparation",
+    `- User answers: ${hasUserAnswers ? "Recorded below; user-provided, not AI-observed." : "Not provided (legacy record or no answers saved)."}`,
+    responseCondition,
+    `- Visible residue / contamination: Not independently inspected. User-reported surface condition: ${["paper"].includes(record.category) ? (record.assessment?.answers?.condition || "Not provided") : "Not assessed"}; mixed-material answer: ${record.assessment?.answers?.contamination || "Not provided"}.`,
+    `- Preparation: ${reportSafeLine(assessment.preparation)}`,
+    "- Parts to remove / sort separately: Not provided.",
+    `- Handling precautions: ${safety.replace(/\n/g, " ")}`,
+    "",
+    "## Disposal or reuse",
+    `- Recommended action: ${reportSafeLine(assessment.action)}`,
+    "- Bin / collection stream: Not provided; no municipal rules source is connected.",
+    "- Local guidance / facility: Not provided; no local facility lookup is connected.",
+    `- Reuse / repair suggestions: ${reportSafeLine(assessment.reuse)}`,
+    `- Local-rule dependency: ${reportSafeLine(assessment.localRuleDependency)}`,
+    `- User next steps: ${reportSafeLine(assessment.action)} Check the local authority before acting.`,
+    `- Alternative if preferred option is unavailable: ${reportSafeLine(assessment.alternative)}`,
+    "",
+    "## Environmental impact",
+    "- Weight / quantity and units: Not measured; record count is not item quantity.",
+    "- Potential recovery / reuse value: Unknown; no validated material value or measured quantity.",
+    "- Estimated environmental benefit: Not calculated; no verified outcome, measured weight, or documented factors.",
+    "- Assumptions / estimate source: No environmental estimates made.",
+    "- Landfill / emissions estimates: Unknown; no stated method or supporting data available.",
+    "",
+    "## Digital Twin / material flow",
+    `- Tracking ID: ${reportSafeLine(record.id)}`,
+    `- Current status: ${stageLabels[record.status]} (simulated)`,
+    `- Material-flow events:\n${events}`,
+    "- Previous / next destination or handler: Unknown / not connected.",
+    "- Quantity or weight per stage: Unknown / not measured.",
+    "- Unverified handoffs / traceability gaps: All physical handoffs, facilities, destinations, and outcomes are unverified; lifecycle is a software simulation.",
+    "",
+    "## Personalized AI guidance",
+    `- Personalized rule-based recommendation: ${reportSafeLine(assessment.action)}`,
+    `- Explanation: ${reportSafeLine(assessment.explanation)}`,
+    `- Alternative: ${reportSafeLine(assessment.alternative)}`,
+    `- Confidence / limitations: ${Number.isFinite(estimate?.confidence) ? `${Math.round(estimate.confidence * 100)}% model confidence estimate; not validated accuracy. ` : "No confidence score. "}${reportSafeLine(estimate?.caveat || "Visual inspection cannot confirm chemical composition, local acceptance, or actual recycling outcomes.")}`,
+    "- Follow-up: Confirm uncertain condition details and consult the local waste authority.",
+    "",
+    "## Audit and quality",
+    `- Model / system version: ${record.analysisModel ? reportSafeLine(record.analysisModel) : "No model version recorded; EcoSnapAI browser prototype rules"}`,
+    `- Data sources: ${record.source === "ai-model" ? "Saved Gemini visual estimate and user-provided answers; local transparent condition rules; browser-local lifecycle events." : "Saved sample/manual category and user-provided answers; local transparent condition rules; browser-local lifecycle events."}`,
+    `- Human review status / notes: ${humanReview}. ${assessment.manualReview ? "Review is required because information is uncertain or safety-related." : "No human verification evidence stored."}`,
+    `- Missing fields and reasons:\n${missing}`,
+    `- Safety warnings:\n${safety}`,
+    `- Report generation date: ${new Date(generatedAt).toISOString()}`,
+    "- Export format: Markdown (.md)",
+    "",
+    "> This is a prototype assessment. Local recycling rules, facilities, material composition, and environmental outcomes are not verified.",
+  ].join("\n");
+}
+
 function showGeneratedReport(report, meta) {
   const reportId = `ECO-${new Date().toISOString().replace(/\D/g, "").slice(0, 14)}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
   $("#report-id").textContent = reportId;
   const generatedAt = new Date().toLocaleString();
   $("#report-generated-at").textContent = generatedAt;
-  generatedReport = `> Report ID: ${reportId} · Generated: ${generatedAt}\n\n${report}`;
+  reportBaseText = report;
+  reportMetaText = meta;
+  generatedReport = composeGeneratedReport();
   $("#report-meta").textContent = meta;
   $("#report-dashboard").innerHTML = renderReportDashboard(meta);
   $("#report-text").textContent = generatedReport;
   $("#report-error").hidden = true;
   $("#report-output").hidden = false;
   $("#report-output").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function composeGeneratedReport() {
+  const header = `> Report ID: ${$("#report-id").textContent} · Generated: ${$("#report-generated-at").textContent}\n\n${reportBaseText}`;
+  if (!records.length) return header;
+  const generatedAt = new Date().toISOString();
+  return `${header}\n\n---\n\n# Per-item assessment checklists\n\n${records.map((record) => itemReportMarkdown(record, generatedAt)).join("\n\n---\n\n")}`;
+}
+
+function refreshGeneratedReport() {
+  $("#report-dashboard").innerHTML = renderReportDashboard(reportMetaText);
+  generatedReport = composeGeneratedReport();
+  const reportText = $("#report-text");
+  if (reportText) reportText.textContent = generatedReport;
 }
 
 function renderReportDashboard(meta) {
@@ -989,6 +1434,7 @@ function renderReportDashboard(meta) {
     ? records.map((record) => {
       const category = categories[record.category];
       const estimate = record.aiSummary;
+      const conditionAssessment = assessmentForRecord(record);
       const confidence = record.source === "ai-model" && Number.isFinite(estimate?.confidence)
         ? `${Math.round(estimate.confidence * 100)}%`
         : "Not available";
@@ -1018,6 +1464,19 @@ function renderReportDashboard(meta) {
       const eventMarkup = events.length
         ? events.map((event) => `<li><span class="report-event-dot"></span><div><strong>${escapeHtml(stageLabels[event.status])}</strong><p>${escapeHtml(event.note)}</p><time datetime="${escapeHtml(event.at)}">${escapeHtml(new Date(event.at).toLocaleString())}</time></div></li>`).join("")
         : "<li><div><strong>No lifecycle events recorded</strong></div></li>";
+      const answerMarkup = (assessmentQuestions[record.category] || []).map((question) => {
+        const value = record.assessment?.answers?.[question.key];
+        const option = question.options.find(([key]) => key === value);
+        return `<div><dt>${escapeHtml(question.label)}</dt><dd>${escapeHtml(option ? option[1] : "Not provided")}</dd></div>`;
+      }).join("") || "<div><dt>Condition questionnaire</dt><dd>Not available for an unidentified category</dd></div>";
+      const tagMarkup = conditionAssessment.tags.map((tag) =>
+        `<details class="report-property-tag"><summary>${escapeHtml(tag.label)}</summary><p>${escapeHtml(tag.explanation)}</p><small>Source: ${escapeHtml(tag.source)}</small></details>`
+      ).join("") || "<p class=\"report-caption\">No specific waste-property tags established.</p>";
+      const safetyMarkup = conditionAssessment.safetyWarnings.length
+        ? conditionAssessment.safetyWarnings.map((warning) => `<li>${escapeHtml(warning)}</li>`).join("")
+        : "<li>No condition-specific warning recorded; use general care and local guidance.</li>";
+      const missingMarkup = [...conditionAssessment.missingFields, "Weight, facilities, material value, and physical destinations are not collected."]
+        .map((field) => `<li>${escapeHtml(field)}</li>`).join("");
       return `<article class="report-item-card">
         <div class="report-item-heading">${thumbnail}<div class="report-item-title"><span class="report-category-badge category-${record.category}">${escapeHtml(category.label)}</span><h4>${escapeHtml(record.itemName)}</h4><p>${source}</p><code>${escapeHtml(record.id)}</code></div></div>
         ${warning}
@@ -1025,6 +1484,8 @@ function renderReportDashboard(meta) {
         <section class="report-subsection"><h5>Computer vision record</h5>${details}<p class="report-caption">A saved AI result is a visual estimate, not proof of material composition or recycling acceptance. ${record.analysisModel ? `Model: ${escapeHtml(record.analysisModel)}.` : "Model version was not recorded."}</p></section>
         <section class="report-subsection"><h5>Recommended next steps</h5><div class="report-recommendations"><div><span>01 · ACTION</span><p>${escapeHtml(action)}</p></div><div><span>02 · SAFE PREPARATION</span><p>${escapeHtml(estimate?.preparation || "Follow applicable local guidance; this prototype does not verify local rules.")}</p></div><div><span>03 · REUSE POSSIBILITY</span><p>${escapeHtml(estimate?.reuseOption || "Not assessed for this record.")}</p></div></div><p class="report-caption">No verified local drop-off locations are connected. Check your local authority before disposal.</p></section>
         <section class="report-subsection"><h5>Digital Twin trace <small>software simulation · not physical tracking</small></h5><ol class="report-event-list">${eventMarkup}</ol><p class="report-caption">Collection, processing facility, destination and final recovery are not connected or evidenced.</p></section>
+        <section class="report-subsection report-assessment-section"><h5>Condition checklist and audit</h5><dl class="report-detail-grid">${answerMarkup}<div><dt>Classification status</dt><dd>${escapeHtml(conditionAssessment.classification.join("; ") || "Unknown")}</dd></div><div><dt>Recommended action</dt><dd>${escapeHtml(conditionAssessment.action)}</dd></div><div><dt>Preparation</dt><dd>${escapeHtml(conditionAssessment.preparation)}</dd></div><div><dt>Reuse / repair</dt><dd>${escapeHtml(conditionAssessment.reuse)}</dd></div><div><dt>Local-rule dependency</dt><dd>${escapeHtml(conditionAssessment.localRuleDependency)}</dd></div><div><dt>Human review</dt><dd>${conditionAssessment.manualReview ? "Suggested / required" : "No review evidence recorded"}</dd></div><div><dt>Weight / quantity</dt><dd>Not measured</dd></div><div><dt>Impact / emissions</dt><dd>Not estimated; method and supporting data unavailable</dd></div><div><dt>Destination / handler</dt><dd>Unknown; no physical traceability connected</dd></div></dl><div class="report-property-tags">${tagMarkup}</div><h6>Safety warnings</h6><ul class="report-audit-list">${safetyMarkup}</ul><h6>Missing fields</h6><ul class="report-audit-list">${missingMarkup}</ul><p class="report-caption">Guidance uses a transparent local ruleset and saved user answers; user-provided condition is not AI-observed. Property tags are not certifications. Gemini visual estimates remain separate. Local acceptance is unverified.</p></section>
+        <div class="report-item-download"><button class="utility-button" type="button" data-download-item-report="${escapeHtml(record.id)}">Download this item report (.md)</button></div>
       </article>`;
     }).join("")
     : `<div class="report-empty"><span aria-hidden="true">↻</span><h4>No saved material records yet</h4><p>Analyze an image and save the result, or save a clearly labelled sample/manual review. This report will then include its actual available details.</p><a href="#scan">Go to image analysis ↗</a></div>`;
@@ -1149,7 +1610,7 @@ function buildOfflineProjectReport() {
     "- No verified collection, processing, destination or environmental calculation factor is connected.",
     "",
     "## Architecture, privacy and safety",
-    "The browser interface stores records in localStorage. The Node.js server keeps the Gemini API key in the local .env file and serves the AI endpoints. Photo data is sent to Google only after the user selects AI analysis; report generation sends sanitized record metadata, not photos. The prototype does not connect to local recycling rules. Potentially hazardous items need cautious human review and should not be opened, tested, or handled based on an AI suggestion.",
+    "The browser interface stores records in localStorage. The Node.js server keeps the Gemini API key in the local .env file and serves the AI endpoints. Photo data is sent to Google only after the user selects AI analysis; smart report generation sends sanitized record metadata and validated user-provided condition answers, not photos. The prototype does not connect to local recycling rules. Potentially hazardous items need cautious human review and should not be opened, tested, or handled based on an AI suggestion.",
     "",
     "## Limitations and assumptions",
     "Classification and confidence have not been validated for accuracy. Local rules, collection services, and actual material destinations are not integrated. Browser history is device/browser-specific, lifecycle changes are simulated, and no collection, recycling, reuse, diversion, or carbon-saving outcome is measured.",
@@ -1203,7 +1664,7 @@ async function generateProjectReport() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        records: records.map(({ id, category, itemName, status, source, createdAt, analysisAt, analysisModel, events, aiSummary }) => ({
+        records: records.map(({ id, category, itemName, status, source, createdAt, analysisAt, analysisModel, events, aiSummary, assessment }) => ({
           id,
           category,
           itemName,
@@ -1214,6 +1675,7 @@ async function generateProjectReport() {
           analysisModel,
           events,
           aiSummary,
+          assessment,
         })),
       }),
     });
@@ -1296,6 +1758,138 @@ function downloadReportData() {
   announce("Saved analysis data downloaded as JSON.");
 }
 
+function triggerDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function zipChecksum(bytes) {
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function createStoredZip(files) {
+  const encoder = new TextEncoder();
+  const date = new Date();
+  const dosTime = (date.getHours() << 11) | (date.getMinutes() << 5) | Math.floor(date.getSeconds() / 2);
+  const dosDate = ((date.getFullYear() - 1980) << 9) | ((date.getMonth() + 1) << 5) | date.getDate();
+  const localChunks = [];
+  const directoryChunks = [];
+  let localOffset = 0;
+
+  files.forEach(({ name, content }) => {
+    const nameBytes = encoder.encode(name);
+    const contentBytes = encoder.encode(content);
+    const checksum = zipChecksum(contentBytes);
+    const localHeader = new Uint8Array(30 + nameBytes.length);
+    const localView = new DataView(localHeader.buffer);
+    localView.setUint32(0, 0x04034b50, true);
+    localView.setUint16(4, 20, true);
+    localView.setUint16(6, 0x0800, true);
+    localView.setUint16(8, 0, true);
+    localView.setUint16(10, dosTime, true);
+    localView.setUint16(12, dosDate, true);
+    localView.setUint32(14, checksum, true);
+    localView.setUint32(18, contentBytes.length, true);
+    localView.setUint32(22, contentBytes.length, true);
+    localView.setUint16(26, nameBytes.length, true);
+    localView.setUint16(28, 0, true);
+    localHeader.set(nameBytes, 30);
+    localChunks.push(localHeader, contentBytes);
+
+    const directoryHeader = new Uint8Array(46 + nameBytes.length);
+    const directoryView = new DataView(directoryHeader.buffer);
+    directoryView.setUint32(0, 0x02014b50, true);
+    directoryView.setUint16(4, 20, true);
+    directoryView.setUint16(6, 20, true);
+    directoryView.setUint16(8, 0x0800, true);
+    directoryView.setUint16(10, 0, true);
+    directoryView.setUint16(12, dosTime, true);
+    directoryView.setUint16(14, dosDate, true);
+    directoryView.setUint32(16, checksum, true);
+    directoryView.setUint32(20, contentBytes.length, true);
+    directoryView.setUint32(24, contentBytes.length, true);
+    directoryView.setUint16(28, nameBytes.length, true);
+    directoryView.setUint16(30, 0, true);
+    directoryView.setUint16(32, 0, true);
+    directoryView.setUint16(34, 0, true);
+    directoryView.setUint16(36, 0, true);
+    directoryView.setUint32(38, 0, true);
+    directoryView.setUint32(42, localOffset, true);
+    directoryHeader.set(nameBytes, 46);
+    directoryChunks.push(directoryHeader);
+    localOffset += localHeader.length + contentBytes.length;
+  });
+
+  const directoryOffset = localOffset;
+  const directorySize = directoryChunks.reduce((total, chunk) => total + chunk.length, 0);
+  const end = new Uint8Array(22);
+  const endView = new DataView(end.buffer);
+  endView.setUint32(0, 0x06054b50, true);
+  endView.setUint16(4, 0, true);
+  endView.setUint16(6, 0, true);
+  endView.setUint16(8, files.length, true);
+  endView.setUint16(10, files.length, true);
+  endView.setUint32(12, directorySize, true);
+  endView.setUint32(16, directoryOffset, true);
+  endView.setUint16(20, 0, true);
+  return new Blob([...localChunks, ...directoryChunks, end], { type: "application/zip" });
+}
+
+function itemReportFilename(record) {
+  const safeId = record.id.replace(/[^A-Za-z0-9_-]/g, "-").slice(0, 64) || "item";
+  const uniqueSuffix = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  return `ecosnapai-item-report-${safeId}-${uniqueSuffix}.md`;
+}
+
+function downloadIndividualItemReport(id) {
+  const record = records.find((entry) => entry.id === id);
+  if (!record) {
+    announce("That item report is no longer available in this browser.");
+    return;
+  }
+  try {
+    const blob = new Blob([itemReportMarkdown(record)], { type: "text/markdown;charset=utf-8" });
+    triggerDownload(blob, itemReportFilename(record));
+    announce(`Downloaded the report for ${record.itemName}.`);
+  } catch (error) {
+    console.error("EcoSnapAI could not download this item report.", error);
+    announce("The item report could not be downloaded. Try again or use Download .md.");
+  }
+}
+
+function downloadAllItemReports() {
+  if (!records.length) {
+    announce("There are no saved item reports to download.");
+    return;
+  }
+  try {
+    const generatedAt = new Date().toISOString();
+    const files = records.map((record) => ({
+      name: itemReportFilename(record),
+      content: itemReportMarkdown(record, generatedAt),
+    }));
+    const archive = createStoredZip(files);
+    const stamp = generatedAt.replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+    const suffix = Math.random().toString(36).slice(2, 7);
+    triggerDownload(archive, `ecosnapai-item-reports-${stamp}-${suffix}.zip`);
+    announce(`Downloaded ${files.length} individual item ${files.length === 1 ? "report" : "reports"} in a ZIP archive.`);
+  } catch (error) {
+    console.error("EcoSnapAI could not create the item-report archive.", error);
+    announce("The item-report archive could not be created. Try downloading reports individually.");
+  }
+}
+
 function previewReport() {
   if ($("#report-output").hidden) generateOfflineReport();
   $("#report-output").scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1365,6 +1959,13 @@ $("#reset-scan").addEventListener("click", () => {
 });
 $("#review-photo").addEventListener("click", reviewPhoto);
 $("#location-select").addEventListener("change", renderResult);
+$("#assessment-panel").addEventListener("change", (event) => {
+  const select = event.target.closest("[data-assessment-key]");
+  if (!select) return;
+  if (select.value) currentAssessmentAnswers[select.dataset.assessmentKey] = select.value;
+  else delete currentAssessmentAnswers[select.dataset.assessmentKey];
+  renderAssessmentPanel(false);
+});
 $("#explain-scan").addEventListener("click", () => {
   const explanation = $("#explanation");
   const item = categories[currentCategory];
@@ -1384,6 +1985,8 @@ $("#material-list").addEventListener("click", (event) => {
   if (advanceButton) advanceRecord(advanceButton.dataset.advance);
   const removeButton = event.target.closest("[data-remove]");
   if (removeButton) removeRecord(removeButton.dataset.remove);
+  const saveAssessmentButton = event.target.closest("[data-save-assessment]");
+  if (saveAssessmentButton) saveUpdatedAssessment(saveAssessmentButton.dataset.saveAssessment, saveAssessmentButton.closest(".material-row"));
 });
 $("#category-breakdown").addEventListener("click", (event) => {
   const button = event.target.closest("[data-filter-category]");
@@ -1403,6 +2006,11 @@ $("#generate-report").addEventListener("click", generateProjectReport);
 $("#generate-offline-report").addEventListener("click", generateOfflineReport);
 $("#copy-report").addEventListener("click", copyReport);
 $("#download-report").addEventListener("click", downloadReport);
+$("#download-all-item-reports").addEventListener("click", downloadAllItemReports);
+$("#report-dashboard").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-download-item-report]");
+  if (button) downloadIndividualItemReport(button.dataset.downloadItemReport);
+});
 $("#preview-report").addEventListener("click", previewReport);
 $("#print-report").addEventListener("click", printReport);
 $("#download-report-json").addEventListener("click", downloadReportData);
