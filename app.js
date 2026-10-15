@@ -179,11 +179,16 @@ function renderResult() {
   if (currentAiAnalysis) {
     $("#ai-report-content").replaceChildren();
     [
+      ["Identified item", currentAiAnalysis.itemName],
+      ["Category", item.label],
       ["Visible material", currentAiAnalysis.material],
       ["Condition", currentAiAnalysis.condition],
+      ["Visual confidence", `${Math.round(currentAiAnalysis.confidence * 100)}%${currentAiAnalysis.needsReview ? " · human review recommended" : ""}`],
+      ["Visible evidence", currentAiAnalysis.explanation],
+      ["Suggested next step", currentAiAnalysis.action],
       ["Preparation", currentAiAnalysis.preparation],
-      ["Reuse option", currentAiAnalysis.reuseOption],
-      ["Safety / confidence note", currentAiAnalysis.caveat],
+      ["Reuse possibility", currentAiAnalysis.reuseOption],
+      ["Safety note", currentAiAnalysis.caveat],
     ].forEach(([label, value]) => {
       const paragraph = document.createElement("p");
       const strong = document.createElement("strong");
@@ -264,12 +269,17 @@ function saveScan() {
     status: stageOrder[0],
     createdAt: now,
     aiSummary: currentAiAnalysis ? {
+      itemName: currentAiAnalysis.itemName,
       material: currentAiAnalysis.material,
       condition: currentAiAnalysis.condition,
       confidence: currentAiAnalysis.confidence,
       needsReview: currentAiAnalysis.needsReview,
+      hazardous: currentAiAnalysis.hazardous,
       action: currentAiAnalysis.action,
+      preparation: currentAiAnalysis.preparation,
+      reuseOption: currentAiAnalysis.reuseOption,
       explanation: currentAiAnalysis.explanation,
+      caveat: currentAiAnalysis.caveat,
     } : null,
     events: [{ status: stageOrder[0], at: now, note: "Material record created" }],
   };
@@ -583,7 +593,41 @@ async function checkModelStatus() {
   }
 }
 
-function readFileAsBase64(file) {
+async function readFileAsBase64(file) {
+  if (typeof createImageBitmap !== "function") {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.addEventListener("load", () => {
+        const result = reader.result;
+        if (typeof result !== "string" || !result.includes(",")) {
+          reject(new Error("Could not read the selected photo. Please choose it again."));
+          return;
+        }
+        resolve({ mimeType: file.type, image: result.slice(result.indexOf(",") + 1) });
+      });
+      reader.addEventListener("error", () => reject(new Error("Could not read the selected photo. Please choose it again.")));
+      reader.readAsDataURL(file);
+    });
+  }
+  const bitmap = await createImageBitmap(file);
+  const maxDimension = 1280;
+  const scale = Math.min(1, maxDimension / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  const context = canvas.getContext("2d");
+  if (!context) {
+    bitmap.close();
+    throw new Error("Could not prepare the selected photo. Please try another image.");
+  }
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  const optimized = await new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error("Could not optimize the selected photo. Please try another image."));
+    }, "image/jpeg", 0.8);
+  });
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.addEventListener("load", () => {
@@ -592,10 +636,10 @@ function readFileAsBase64(file) {
         reject(new Error("Could not read the selected photo. Please choose it again."));
         return;
       }
-      resolve(result.slice(result.indexOf(",") + 1));
+      resolve({ mimeType: "image/jpeg", image: result.slice(result.indexOf(",") + 1) });
     });
     reader.addEventListener("error", () => reject(new Error("Could not read the selected photo. Please choose it again.")));
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(optimized);
   });
 }
 
@@ -621,7 +665,7 @@ async function analyzePhoto() {
     const response = await fetch("/api/analyze", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mimeType: file.type, image }),
+      body: JSON.stringify(image),
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "The AI analysis could not be completed.");
@@ -648,8 +692,129 @@ async function analyzePhoto() {
   }
 }
 
+function showGeneratedReport(report, meta) {
+  generatedReport = report;
+  $("#report-text").textContent = report;
+  $("#report-meta").textContent = meta;
+  $("#report-error").hidden = true;
+  $("#report-output").hidden = false;
+  $("#report-output").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function reportSafeLine(value) {
+  return String(value || "").replace(/[\r\n|]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function buildOfflineProjectReport() {
+  const categoryCounts = Object.keys(categories)
+    .map((category) => `- ${categories[category].label}: ${records.filter((record) => record.category === category).length}`)
+    .join("\n");
+  const stageCounts = stageOrder
+    .map((stage) => `- ${stageLabels[stage]} (simulated): ${records.filter((record) => record.status === stage).length}`)
+    .join("\n");
+  const sourceCounts = [
+    ["AI-assisted estimates", records.filter((record) => record.source === "ai-model").length],
+    ["Manual reviews", records.filter((record) => record.source === "manual-review").length],
+    ["Sample/demo records", records.filter((record) => record.source === "sample").length],
+  ].map(([label, count]) => `- ${label}: ${count}`).join("\n");
+  const needsReviewCount = records.filter((record) =>
+    record.category === "unknown" || record.source === "manual-review" || record.aiSummary?.needsReview
+  ).length;
+  const itemLines = records.length
+    ? records.map((record) => {
+      const estimate = record.aiSummary;
+      const detail = estimate
+        ? `; AI visual estimate ${Number.isFinite(estimate.confidence) ? `${Math.round(estimate.confidence * 100)}% confidence` : "without a confidence score"}${estimate.needsReview ? ", human review recommended" : ""}`
+        : "";
+      return `- ${reportSafeLine(record.itemName) || "Unidentified item"} — ${categories[record.category].label}; ${stageLabels[record.status]} (simulated); ${record.source === "ai-model" ? "AI-assisted estimate" : record.source === "manual-review" ? "manual review" : "sample data"}${detail}.`;
+    }).join("\n")
+    : "- No saved material records are present in this browser.";
+  const aiDetails = records
+    .filter((record) => record.aiSummary)
+    .map((record) => {
+      const summary = record.aiSummary;
+      return [
+        `### ${reportSafeLine(record.itemName) || "Unidentified item"}`,
+        `- Visible material: ${reportSafeLine(summary.material) || "Not recorded"}`,
+        `- Condition: ${reportSafeLine(summary.condition) || "Unknown"}`,
+        `- Suggested next step: ${reportSafeLine(summary.action) || "Not recorded"}`,
+        `- Preparation: ${reportSafeLine(summary.preparation) || "Not recorded"}`,
+        `- Reuse possibility: ${reportSafeLine(summary.reuseOption) || "Not recorded"}`,
+        `- Visual note: ${reportSafeLine(summary.explanation) || "Not recorded"}`,
+        `- Safety caveat: ${reportSafeLine(summary.caveat) || "AI estimate only; local rules are not verified."}`,
+      ].join("\n");
+    }).join("\n\n");
+  const generatedAt = new Date().toLocaleString();
+  return [
+    "# EcoSnapAI — Smart Recycling Assistant",
+    "",
+    `> Locally assembled report · ${generatedAt}. Counts come from this browser's saved records. No LLM-generated findings are included.`,
+    "",
+    "## Executive summary",
+    `EcoSnapAI is a hackathon prototype that helps users review a waste-item photo or sample, see cautious next-step guidance, and track a simulated material journey. This browser currently contains **${records.length} saved ${records.length === 1 ? "record" : "records"}**, including **${needsReviewCount}** requiring manual or uncertain review. These counts describe this browser only; they do not show recycling outcomes or environmental impact.`,
+    "",
+    "## Problem and target users",
+    "People may be unsure what an everyday item is made from or how to prepare it for disposal. EcoSnapAI is designed as an educational starting point for households, students, and campus demonstrations; it is not a substitute for local waste-authority instructions.",
+    "",
+    "## Product features and user journey",
+    "Users can choose a demo item or add a photo, request a Gemini visual estimate, review a suggested action and item details, save a record to browser-local history, and move it through identified, sorted, recovery, and reuse stages. Filtering, category summaries, CSV export, record removal, and browser-local clearing are available in the dashboard. Journey stages are simulated.",
+    "",
+    "## AI item analysis",
+    "When the user explicitly requests image analysis, an optimized image copy is sent through the local server to Gemini. The response includes a likely category, item name, visible material, condition, confidence estimate, visible evidence, a cautious next step, preparation guidance, reuse possibility, and safety caveat. These are visual estimates, not verified material tests or disposal rules.",
+    "",
+    aiDetails || "No AI-assisted item reports are present in the saved browser records.",
+    "",
+    "## Current prototype data",
+    `Total saved records: ${records.length}. Records needing review: ${needsReviewCount}.`,
+    "",
+    "### Categories",
+    categoryCounts,
+    "",
+    "### Journey stages",
+    stageCounts,
+    "",
+    "### Record sources",
+    sourceCounts,
+    "",
+    "### Saved item list",
+    itemLines,
+    "",
+    "## Architecture, privacy and safety",
+    "The browser interface stores records in localStorage. The Node.js server keeps the Gemini API key in the local .env file and serves the AI endpoints. Photo data is sent to Google only after the user selects AI analysis; report generation sends sanitized record metadata, not photos. The prototype does not connect to local recycling rules. Potentially hazardous items need cautious human review and should not be opened, tested, or handled based on an AI suggestion.",
+    "",
+    "## Limitations and assumptions",
+    "Classification and confidence have not been validated for accuracy. Local rules, collection services, and actual material destinations are not integrated. Browser history is device/browser-specific, lifecycle changes are simulated, and no collection, recycling, reuse, diversion, or carbon-saving outcome is measured.",
+    "",
+    "## Success metrics and validation plan",
+    "Evaluate material-category accuracy against a human-labeled photo set; measure the proportion of uncertain items appropriately routed to review; test whether users understand preparation guidance; measure task completion time and accessibility with representative users; and separately verify whether location-specific guidance matches current official sources. Establish baselines before reporting any improvement.",
+    "",
+    "## Risks and mitigations",
+    "- Misclassification: show uncertainty, encourage human review, and avoid treating confidence as verified accuracy.",
+    "- Unsafe handling: use conservative language for batteries and other potential hazards; direct users to appropriate local authorities.",
+    "- Incorrect local guidance: clearly state that local rules are not integrated and require confirmation.",
+    "- Privacy exposure: keep the API key server-side, explain when images leave the device, and avoid sending photos with reports.",
+    "- Misleading impact claims: label the material journey as simulated and report only observed record counts.",
+    "",
+    "## Roadmap",
+    "Validate the model on a representative, human-reviewed dataset; connect maintained official local-rule sources; conduct usability and accessibility testing; add durable storage only with an explicit privacy design; and evaluate any real-world collection integration before presenting operational impact.",
+    "",
+    "## Two-minute judge demonstration",
+    "1. Select a sample item and explain that the fixture is not model output.",
+    "2. Upload a non-sensitive item photo, request Gemini analysis, and inspect the visible-material, confidence, safety, and local-rule caveats.",
+    "3. Save the result, show its browser-local record and category breakdown, then advance one simulated lifecycle stage.",
+    "4. Generate the AI report or use this offline report, and emphasize that counts are observed prototype records while disposal outcomes and environmental impact are not measured.",
+  ].join("\n");
+}
+
+function generateOfflineReport() {
+  const report = buildOfflineProjectReport();
+  showGeneratedReport(report, `Generated locally · based on ${records.length} saved ${records.length === 1 ? "record" : "records"} · no Gemini request`);
+  announce("Offline project report generated from this browser's saved records.");
+}
+
 async function generateProjectReport() {
   const button = $("#generate-report");
+  $("#report-error").hidden = true;
   button.disabled = true;
   button.classList.add("is-loading");
   button.textContent = "Building report…";
@@ -658,7 +823,7 @@ async function generateProjectReport() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        records: records.map(({ category, itemName, status, source, createdAt, events }) => ({
+        records: records.map(({ category, itemName, status, source, createdAt, events, aiSummary }) => ({
           category,
           itemName,
           status,
@@ -671,17 +836,28 @@ async function generateProjectReport() {
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "The report could not be generated.");
-    generatedReport = result.report;
-    $("#report-text").textContent = generatedReport;
-    $("#report-meta").textContent = `Generated with ${result.model} · based on ${result.basedOn.recordCount} saved ${result.basedOn.recordCount === 1 ? "record" : "records"}`;
-    $("#report-output").hidden = false;
-    $("#report-output").scrollIntoView({ behavior: "smooth", block: "start" });
+    if (typeof result.report !== "string" || result.report.trim().length < 100) {
+      throw new Error("The report response was incomplete. Please retry.");
+    }
+    showGeneratedReport(result.report, `Generated with ${result.model} · based on ${result.basedOn.recordCount} saved ${result.basedOn.recordCount === 1 ? "record" : "records"}`);
     announce("EcoSnapAI project report generated.");
   } catch (error) {
-    announce(error.message || "The report could not be generated.");
+    console.error("EcoSnapAI could not generate the project report.", error);
+    const reason = error instanceof TypeError && error.message === "Failed to fetch"
+      ? "Could not connect to the local EcoSnapAI server. A local report was generated instead."
+      : `The AI report could not be completed (${error.message || "unknown error"}). A local report was generated instead.`;
+    const fallbackReport = buildOfflineProjectReport();
+    showGeneratedReport(
+      fallbackReport,
+      `Offline fallback · based on ${records.length} saved ${records.length === 1 ? "record" : "records"} · Gemini unavailable`,
+    );
+    $("#report-output").hidden = false;
+    $("#report-error").textContent = reason;
+    $("#report-error").hidden = false;
+    announce("Gemini was unavailable, so a complete offline report was generated from your saved records.");
   } finally {
     button.classList.remove("is-loading");
-    button.innerHTML = "<span>✳</span> Generate full report";
+    button.innerHTML = "<span>✳</span> Generate AI report";
     button.disabled = !modelConfigured;
   }
 }
@@ -787,6 +963,7 @@ $("#load-demo-set").addEventListener("click", loadDemoSet);
 $("#export-history").addEventListener("click", exportHistory);
 $("#clear-history").addEventListener("click", clearHistory);
 $("#generate-report").addEventListener("click", generateProjectReport);
+$("#generate-offline-report").addEventListener("click", generateOfflineReport);
 $("#copy-report").addEventListener("click", copyReport);
 $("#download-report").addEventListener("click", downloadReport);
 $(".menu-toggle").addEventListener("click", (event) => {
