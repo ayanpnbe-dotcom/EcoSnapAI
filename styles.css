@@ -563,3 +563,63 @@
 :root[data-theme="3d"] .button-dark{color:#171020;background:linear-gradient(145deg,#d7c0ff,#a874ee)}
 :root[data-theme="3d"] .button-dark:hover{background:linear-gradient(145deg,#eadcff,#bd8eff)}
 :root[data-theme="3d"] .camera-option-icon{box-shadow:0 0 18px #a66cff35,inset 0 0 0 1px #d7b9ff35}
+
+/* Light theme: the dashboard follows the light palette. Dark and 3D themes keep their own overrides above. */
+:root:not([data-theme="dark"]):not([data-theme="3d"]) .dashboard-section{background:radial-gradient(ellipse at 100% 0%,color-mix(in srgb,var(--leaf) 7%,transparent) 0,transparent 34%),var(--paper);border-color:var(--line);box-shadow:none}
+:root:not([data-theme="dark"]):not([data-theme="3d"]) .dashboard-heading>div:first-child>p,
+:root:not([data-theme="dark"]):not([data-theme="3d"]) .dashboard-legend{color:var(--muted)}
+:root:not([data-theme="dark"]):not([data-theme="3d"]) .metric-card{border-color:var(--line);background:linear-gradient(180deg,var(--cream),color-mix(in srgb,var(--pale) 70%,var(--cream)));box-shadow:0 10px 22px rgba(32,61,48,.07)}
+:root:not([data-theme="dark"]):not([data-theme="3d"]) .metric-card>span,
+:root:not([data-theme="dark"]):not([data-theme="3d"]) .metric-card small{color:var(--muted)}
+:root:not([data-theme="dark"]):not([data-theme="3d"]) .metric-card strong{color:var(--ink)}
+:root:not([data-theme="dark"]):not([data-theme="3d"]) .breakdown-panel{border-color:var(--line);background:linear-gradient(115deg,var(--pale),var(--cream));box-shadow:0 14px 28px rgba(32,61,48,.06)}
+:root:not([data-theme="dark"]):not([data-theme="3d"]) .breakdown-heading h3{color:var(--ink)}
+:root:not([data-theme="dark"]):not([data-theme="3d"]) .breakdown-heading>span,
+:root:not([data-theme="dark"]):not([data-theme="3d"]) .breakdown-empty{color:var(--muted)}
+:root:not([data-theme="dark"]):not([data-theme="3d"]) .breakdown-category{background:color-mix(in srgb,var(--leaf) 5%,transparent)}
+:root:not([data-theme="dark"]):not([data-theme="3d"]) .breakdown-category:hover,
+:root:not([data-theme="dark"]):not([data-theme="3d"]) .breakdown-category:focus-visible{background:color-mix(in srgb,var(--leaf) 12%,transparent)}
+:root:not([data-theme="dark"]):not([data-theme="3d"]) .breakdown-category-label{color:var(--ink)}
+:root:not([data-theme="dark"]):not([data-theme="3d"]) .breakdown-category-label i{background:color-mix(in srgb,var(--leaf) 15%,var(--cream));color:var(--leaf);border-color:var(--line)}
+:root:not([data-theme="dark"]):not([data-theme="3d"]) .breakdown-track{background:color-mix(in srgb,var(--leaf) 18%,transparent)}
+:root:not([data-theme="dark"]):not([data-theme="3d"]) .breakdown-category>b{color:var(--ink)}
+:root:not([data-theme="dark"]):not([data-theme="3d"]) .materials-toolbar{border-color:var(--line);border-radius:18px;background:linear-gradient(135deg,var(--pale),var(--cream));box-shadow:0 12px 26px rgba(32,61,48,.06);padding:14px 16px 18px}
+:root:not([data-theme="dark"]):not([data-theme="3d"]) .materials-toolbar h3{color:var(--ink)}
+:root:not([data-theme="dark"]):not([data-theme="3d"]) .materials-toolbar>div:first-child span,
+:root:not([data-theme="dark"]):not([data-theme="3d"]) .materials-toolbar label{color:var(--muted)}
+:root:not([data-theme="dark"]):not([data-theme="3d"]) .materials-toolbar select,
+:root:not([data-theme="dark"]):not([data-theme="3d"]) .materials-toolbar input{color:var(--ink);background:var(--cream);border-color:var(--line)}
+:root:not([data-theme="dark"]):not([data-theme="3d"]) .material-row{border-bottom-color:var(--line);background:transparent}
+:root:not([data-theme="dark"]):not([data-theme="3d"]) .material-name strong{color:var(--ink)}
+:root:not([data-theme="dark"]):not([data-theme="3d"]) .material-name small,
+:root:not([data-theme="dark"]):not([data-theme="3d"]) .material-meta,
+:root:not([data-theme="dark"]):not([data-theme="3d"]) .event-history{color:var(--muted)}
+:root:not([data-theme="dark"]):not([data-theme="3d"]) .empty-state{margin-top:11px;border:1px dashed var(--line);border-radius:18px;background:var(--cream);color:var(--muted);box-shadow:none}
+:root:not([data-theme="dark"]):not([data-theme="3d"]) .empty-state>span{color:var(--leaf)}
+:root:not([data-theme="dark"]):not([data-theme="3d"]) .empty-state strong{color:var(--ink)}
+:root:not([data-theme="dark"]):not([data-theme="3d"]) .empty-state p{color:var(--muted)}
+:root:not([data-theme="dark"]):not([data-theme="3d"]) .dashboard-footnote{color:var(--muted)}
+:root:not([data-theme="dark"]):not([data-theme="3d"]) .project-report{border-color:var(--line);background:linear-gradient(120deg,color-mix(in srgb,var(--sage) 65%,var(--cream)),var(--cream) 72%);box-shadow:0 12px 28px rgba(32,61,48,.07)}
+:root:not([data-theme="dark"]):not([data-theme="3d"]) .project-report-copy h3{color:var(--ink)}
+:root:not([data-theme="dark"]):not([data-theme="3d"]) .project-report-copy>p{color:var(--muted)}
+:root:not([data-theme="dark"]):not([data-theme="3d"]) .report-model-note{color:var(--leaf)}
+:root:not([data-theme="dark"]):not([data-theme="3d"]) .report-estimate{color:var(--muted)}
+
+/* Dark and 3D themes: finish the few components that still used light-only colors. */
+:root[data-theme="dark"] .ai-report,:root[data-theme="3d"] .ai-report{border-color:var(--line);background:var(--cream)}
+:root[data-theme="dark"] .ai-report summary,:root[data-theme="3d"] .ai-report summary{color:var(--leaf)}
+:root[data-theme="dark"] .ai-report p,:root[data-theme="3d"] .ai-report p{color:var(--muted)}
+:root[data-theme="dark"] .ai-report p strong,:root[data-theme="3d"] .ai-report p strong{color:var(--ink)}
+:root[data-theme="dark"] .twin-advance,:root[data-theme="3d"] .twin-advance{color:var(--leaf)}
+:root[data-theme="dark"] .twin-advance:disabled,:root[data-theme="3d"] .twin-advance:disabled{color:var(--muted)}
+:root[data-theme="dark"] .journey-bottom a,:root[data-theme="3d"] .journey-bottom a{color:var(--leaf)}
+:root[data-theme="dark"] .model-status a,:root[data-theme="3d"] .model-status a{color:var(--leaf)}
+:root[data-theme="dark"] .utility-button,:root[data-theme="3d"] .utility-button{color:var(--ink)}
+:root[data-theme="dark"] .utility-button.utility-danger,:root[data-theme="3d"] .utility-button.utility-danger{color:var(--ink);border-color:var(--line)}
+:root[data-theme="dark"] .utility-button.utility-danger:hover,:root[data-theme="3d"] .utility-button.utility-danger:hover{background:var(--sage);border-color:var(--line)}
+:root[data-theme="dark"] .row-remove,:root[data-theme="3d"] .row-remove{color:var(--muted)}
+:root[data-theme="dark"] .row-remove:hover,:root[data-theme="3d"] .row-remove:hover{color:#e6a78f}
+:root[data-theme="dark"] .preview-caption,:root[data-theme="3d"] .preview-caption{color:var(--muted)}
+:root[data-theme="dark"] .analyze-button>span:first-child,:root[data-theme="3d"] .analyze-button>span:first-child{color:var(--forest)}
+:root[data-theme="dark"] .project-report .button-dark{color:#152116}
+:root[data-theme="3d"] .project-report .button-dark{color:#171020}
