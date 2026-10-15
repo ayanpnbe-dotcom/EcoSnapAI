@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f1f5e9" />
+    <meta name="description" content="EcoSnapAI helps you understand what an item is, where it may go, and how its material journey can be tracked." />
+    <title>EcoSnapAI — Give good materials a next chapter</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="./app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="EcoSnapAI home">
+        <span class="brand-mark" aria-hidden="true">↻</span>
+        <span>EcoSnap<span>AI</span></span>
+      </a>
+      <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="primary-nav" aria-label="Open navigation"><span></span><span></span></button>
+      <nav class="nav-links" id="primary-nav" aria-label="Main navigation">
+        <a href="#why">How it works</a>
+        <a href="#technology">Technology</a>
+        <a href="#twin">Our impact</a>
+      </nav>
+      <a class="button button-dark header-cta" href="#scan">Try the demo <span aria-hidden="true">↗</span></a>
+    </header>
+
+    <main id="main">
+      <section class="hero" id="top" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <p class="eyebrow"><span class="eyebrow-dot"></span> Smart recycling assistant</p>
+          <h1 id="hero-title">Recycling,<br /><em>made clearer.</em></h1>
+          <p class="hero-description">Know what an item is, where it may belong, and how to keep useful materials moving.</p>
+          <div class="hero-actions">
+            <a class="button button-dark" href="#scan">Try a sample scan <span aria-hidden="true">↗</span></a>
+            <a class="button button-outline" href="#why">How it works <span aria-hidden="true">↓</span></a>
+          </div>
+          <p class="hero-pills"><span>Computer vision</span><i>·</i><span>Digital twin</span><i>·</i><span>Grounded guidance</span></p>
+        </div>
+        <div class="hero-art">
+          <img class="hero-photo" src="./assets/eco-landscape.jpg" alt="A quiet alpine lake surrounded by evergreen forest and green mountains" fetchpriority="high" />
+          <div class="photo-wash" aria-hidden="true"></div>
+          <div class="art-topline"><span class="art-live-dot"></span> THE CIRCULAR WAY FORWARD</div>
+          <div class="art-label"><span class="art-label-icon">⌕</span><span><small>SAMPLE IDENTIFICATION</small><strong>Clear plastic bottle</strong><small class="art-label-result">Likely recyclable · sample</small></span><span class="art-label-arrow">↗</span></div>
+          <div class="art-caption"><span>01</span> A better next step for everyday materials</div>
+        </div>
+      </section>
+
+      <section class="intro section-shell" id="why">
+        <div class="section-label"><span>01</span><span class="label-line"></span><span>Small choices, clearer paths</span></div>
+        <div class="intro-grid">
+          <h2>Good intentions<br />deserve <em>clear answers.</em></h2>
+          <div class="intro-copy">
+            <p>Materials can look alike, local rules vary, and a useful thing can end up in the wrong place. EcoSnapAI connects item review, practical guidance and a material journey in one simple experience.</p>
+            <a class="text-link" href="#scan">Start with an item <span aria-hidden="true">↗</span></a>
+          </div>
+        </div>
+        <div class="promise-row"><span><i aria-hidden="true">⌕</i> Less guesswork <b>01</b></span><span><i aria-hidden="true">↻</i> More materials in motion <b>02</b></span><span><i aria-hidden="true">✳</i> A better next step <b>03</b></span></div>
+      </section>
+
+      <section class="capabilities" id="technology" aria-labelledby="capabilities-title">
+        <div class="section-shell">
+          <div class="section-label section-label-light"><span>02</span><span class="label-line"></span><span>Three parts. One better loop.</span></div>
+          <div class="capability-heading">
+            <h2 id="capabilities-title">From “what is this?”<br /><em>to “here’s what’s next.”</em></h2>
+            <p>A little intelligence at every turn can help keep useful materials in the story.</p>
+          </div>
+          <div class="capability-grid">
+            <article class="capability-card"><span class="cap-number">01 / RECOGNIZE</span><span class="cap-icon" aria-hidden="true">⌕</span><h3>Computer<br />Vision</h3><p>Review common materials as recyclable, reusable, organic, hazardous or needing a closer look.</p><span class="cap-note">Prototype: sample or manual review</span></article>
+            <article class="capability-card"><span class="cap-number">02 / TRACE</span><span class="cap-icon" aria-hidden="true">◇</span><h3>Material<br />Twin</h3><p>Follow a saved item through identification, sorting, recovery and reuse.</p><a class="cap-link" href="#twin">Explore the journey <span aria-hidden="true">↗</span></a></article>
+            <article class="capability-card"><span class="cap-number">03 / GUIDE</span><span class="cap-icon" aria-hidden="true">✳</span><h3>Grounded<br />Guidance</h3><p>Get a plain-language explanation tied to a visible prototype rule and its context.</p><span class="cap-note">No local rules are assumed</span></article>
+          </div>
+        </div>
+      </section>
+
+      <section class="scan-section" id="scan" aria-labelledby="scan-title">
+        <div class="section-shell">
+          <div class="section-label"><span>03</span><span class="label-line"></span><span>Try the prototype</span></div>
+          <div class="scan-heading">
+            <div><p class="eyebrow eyebrow-green">A little clarity, on demand</p><h2 id="scan-title">Meet your next<br /><em>right step.</em></h2></div>
+            <p>Choose a sample item or upload a photo. When Gemini is configured, EcoSnapAI can estimate the material and prepare a careful, clearly labelled item report.</p>
+          </div>
+          <div class="scan-workspace">
+            <div class="scan-controls">
+              <div class="control-block">
+                <div class="control-title"><span>Choose a demo item</span><span class="demo-badge">SAMPLE DATA</span></div>
+                <div class="sample-grid" role="group" aria-label="Choose a sample material">
+                  <button class="sample-button active" type="button" data-sample="plastic" aria-pressed="true"><span>♧</span><b>Plastic bottle</b><small>Packaging</small></button>
+                  <button class="sample-button" type="button" data-sample="paper" aria-pressed="false"><span>▤</span><b>Cardboard</b><small>Paper</small></button>
+                  <button class="sample-button" type="button" data-sample="metal" aria-pressed="false"><span>▱</span><b>Metal can</b><small>Container</small></button>
+                  <button class="sample-button" type="button" data-sample="glass" aria-pressed="false"><span>◯</span><b>Glass jar</b><small>Container</small></button>
+                  <button class="sample-button" type="button" data-sample="organic" aria-pressed="false"><span>◒</span><b>Food scraps</b><small>Organic</small></button>
+                  <button class="sample-button" type="button" data-sample="hazardous" aria-pressed="false"><span>⚠</span><b>Battery</b><small>Special handling</small></button>
+                </div>
+              </div>
+              <label class="upload-box" for="photo-input">
+                <input id="photo-input" type="file" accept="image/png,image/jpeg,image/webp" />
+                <span class="upload-icon" aria-hidden="true">＋</span><span><b>Add a photo</b><small>PNG, JPG or WebP · up to 5 MB · preview stays on this device</small></span><span class="upload-arrow" aria-hidden="true">↗</span>
+              </label>
+              <button id="analyze-photo" type="button" class="button button-dark analyze-button" disabled><span>✳</span> Analyze photo with Gemini <span aria-hidden="true">↗</span></button>
+              <div class="model-status" id="model-status" role="status"><i></i><span>Checking AI connection…</span><a href="./README.md" target="_blank" rel="noreferrer">Setup steps</a></div>
+              <div class="scan-extra-actions">
+                <input id="camera-input" type="file" accept="image/png,image/jpeg,image/webp" capture="environment" />
+                <button id="camera-trigger" type="button" class="plain-button">◎ Take a photo</button>
+                <button id="reset-scan" type="button" class="plain-button">↺ Start over</button>
+              </div>
+              <div class="manual-review" id="manual-review" hidden>
+                <label for="manual-category">Choose a category to review the photo</label>
+                <div class="select-row"><select id="manual-category">
+                  <option value="unknown">I’m not sure</option>
+                  <option value="plastic">Plastic / packaging</option>
+                  <option value="paper">Paper / cardboard</option>
+                  <option value="metal">Metal</option>
+                  <option value="glass">Glass</option>
+                  <option value="organic">Organic / food scraps</option>
+                  <option value="hazardous">Potentially hazardous</option>
+                </select><button type="button" class="button button-dark button-small" id="review-photo">Review category</button></div>
+              </div>
+              <label class="location-field" for="location-select">Guidance context
+                <select id="location-select"><option value="demo-campus">Campus demo rules · unverified</option><option value="unconfigured">My local rules · not configured</option></select>
+              </label>
+              <p class="privacy-note"><span aria-hidden="true">⌑</span> Local preview stays on-device. When you choose AI analysis, that photo is sent to Gemini via this server.</p>
+            </div>
+            <div class="scan-result" aria-live="polite">
+              <div class="result-top"><span><i></i> ECOSNAPAI REVIEW</span><span id="result-mode">DEMO FIXTURE</span></div>
+              <div class="preview-stage" id="preview-stage">
+                <div class="item-illustration bottle-illustration" id="item-illustration" aria-hidden="true"><span></span></div>
+                <img id="photo-preview" alt="Your selected item preview" hidden />
+                <span class="preview-caption" id="preview-caption">SAMPLE ITEM · PLASTIC BOTTLE</span>
+              </div>
+              <div class="result-content">
+                <div class="classification"><div><span class="overline">REVIEWED AS</span><h3 id="result-category">Plastic packaging</h3></div><span class="review-status" id="confidence-badge">Demo fixture</span></div>
+                <div class="advice-box"><span class="advice-icon" aria-hidden="true">✳</span><div><span class="overline">SUGGESTED NEXT STEP</span><p id="result-advice">Empty and rinse it. Check whether your local program accepts this packaging.</p></div></div>
+                <p class="rule-source" id="rule-source">Prototype rule · Campus demo rules (unverified)</p>
+                <div class="explanation" id="explanation" hidden></div>
+                <details class="ai-report" id="ai-report" hidden><summary>AI item report</summary><div id="ai-report-content"></div></details>
+                <div class="result-actions"><button class="button button-dark" id="save-scan" type="button">Save to my twin <span aria-hidden="true">↗</span></button><button class="plain-button" id="explain-scan" type="button">Explain this choice</button></div>
+                <p class="result-disclaimer" id="result-disclaimer">Sample output for demonstration. Not a live computer-vision prediction or verified local disposal advice.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="twin-section" id="twin">
+        <div class="section-shell twin-layout">
+          <div class="twin-copy">
+            <div class="section-label"><span>04</span><span class="label-line"></span><span>A living material map</span></div>
+            <p class="eyebrow eyebrow-green">The material twin</p>
+            <h2>Nothing useful<br />should <em>disappear.</em></h2>
+            <p>Every saved scan starts a transparent journey. Move it through the stages to see how one material record and its event history stay connected.</p>
+            <span class="status-note"><i></i> Lifecycle is simulated in this prototype</span>
+          </div>
+          <div class="journey-card">
+            <div class="journey-card-head"><div><span class="overline">MATERIAL FLOW</span><strong>One item, four stages</strong></div><span class="prototype-tag">DEMO</span></div>
+            <div class="journey-stages" aria-label="Material journey stages">
+              <div class="journey-stage current"><span>01</span><b>Identified</b><small>Scan saved</small></div>
+              <div class="journey-connector"></div>
+              <div class="journey-stage"><span>02</span><b>Sorted</b><small>Next pathway</small></div>
+              <div class="journey-connector"></div>
+              <div class="journey-stage"><span>03</span><b>Recovery</b><small>Processing</small></div>
+              <div class="journey-connector"></div>
+              <div class="journey-stage"><span>04</span><b>Reuse</b><small>Next chapter</small></div>
+            </div>
+            <div class="journey-bottom"><span id="twin-latest"><i></i> Save an item to begin its journey</span><div><button class="twin-advance" id="advance-latest" type="button" disabled>Advance latest item →</button><a href="#dashboard">View my activity ↓</a></div></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="dashboard-section section-shell" id="dashboard" aria-labelledby="dashboard-title">
+        <div class="section-label"><span>05</span><span class="label-line"></span><span>Your materials, in one place</span></div>
+        <div class="dashboard-heading"><div><h2 id="dashboard-title">A clearer view<br />of <em>what’s moving.</em></h2><p>Counts are based on scans saved in this browser. Journey stages are simulated.</p></div><div class="dashboard-legend"><span><i class="legend-observed"></i> Saved records</span><span><i class="legend-simulated"></i> Simulated stages</span></div></div>
+        <div class="metrics-grid">
+          <article class="metric-card"><span>Items saved</span><strong id="metric-total">0</strong><small>Observed in this browser</small></article>
+          <article class="metric-card"><span>Needs review</span><strong id="metric-review">0</strong><small>Unknown or manual review</small></article>
+          <article class="metric-card"><span>In recovery</span><strong id="metric-recovery">0</strong><small>Simulated journey stage</small></article>
+          <article class="metric-card"><span>Reuse stage</span><strong id="metric-reuse">0</strong><small>Simulated journey stage</small></article>
+        </div>
+        <section class="breakdown-panel" aria-labelledby="breakdown-title">
+          <div class="breakdown-heading"><div><span class="overline">AT A GLANCE</span><h3 id="breakdown-title">What have we scanned?</h3></div><span id="breakdown-total">0 items</span></div>
+          <div class="category-breakdown" id="category-breakdown"><p class="breakdown-empty">Your material categories will appear here after your first scan.</p></div>
+        </section>
+        <section class="project-report" aria-labelledby="project-report-title">
+          <div class="project-report-copy"><span class="overline">HACKATHON REPORT</span><h3 id="project-report-title">Turn your prototype into a report.</h3><p>Generate a structured project report covering the problem, product journey, AI design, Digital Twin, safety, metrics, roadmap and live demo—using only your actual saved counts.</p><span class="report-model-note" id="report-model-note">Gemini report generation · no model estimates reported as measured impact</span></div>
+          <div class="project-report-actions"><button class="button button-dark" type="button" id="generate-report"><span>✳</span> Generate full report</button><span class="report-estimate">Uses Gemini API quota</span></div>
+        </section>
+        <div class="report-output" id="report-output" hidden aria-live="polite"><div class="report-output-head"><div><span class="overline">YOUR ECOSNAPAI REPORT</span><span id="report-meta"></span></div><div><button class="utility-button" type="button" id="copy-report">Copy report</button><button class="utility-button" type="button" id="download-report">Download .md</button></div></div><pre id="report-text"></pre></div>
+        <div class="materials-toolbar"><div><h3 id="materials-heading">Material history</h3><span id="history-count">0 records</span></div><div class="history-tools"><div class="history-filters"><label for="category-filter">Category
+          <select id="category-filter"><option value="all">All categories</option><option value="plastic">Plastic</option><option value="paper">Paper / cardboard</option><option value="metal">Metal</option><option value="glass">Glass</option><option value="organic">Organic</option><option value="hazardous">Potentially hazardous</option><option value="unknown">Needs review</option></select></label><label for="status-filter">Journey stage
+          <select id="status-filter"><option value="all">All stages</option><option value="identified">Identified</option><option value="sorted">Sorted</option><option value="recovery">Recovery</option><option value="reuse">Reuse</option></select></label><label for="date-filter">After date<input id="date-filter" type="date" /></label></div><div class="history-actions"><button class="utility-button" type="button" id="load-demo-set">Load demo set</button><button class="utility-button" type="button" id="export-history">Export CSV</button><button class="utility-button utility-danger" type="button" id="clear-history">Clear history</button></div></div></div>
+        <div class="material-list" id="material-list"><div class="empty-state"><span aria-hidden="true">↻</span><strong>Your material journey starts with a scan.</strong><p>Save a sample item above and it will appear here.</p></div></div>
+        <p class="dashboard-footnote">No environmental impact or recycling outcome is inferred from a saved scan.</p>
+      </section>
+
+      <section class="closing">
+        <div class="section-shell closing-inner"><p class="eyebrow">A more thoughtful material journey</p><h2>Give good materials<br /><em>a next chapter.</em></h2><a class="button button-light" href="#scan">Try EcoSnapAI <span aria-hidden="true">↗</span></a></div>
+      </section>
+    </main>
+    <footer class="footer"><a class="brand" href="#top"><span class="brand-mark" aria-hidden="true">↻</span><span>EcoSnap<span>AI</span></span></a><p>Know what it is. Know what’s next.</p><span>HACKATHON PROTOTYPE · SIMULATED MATERIAL FLOW</span></footer>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>
