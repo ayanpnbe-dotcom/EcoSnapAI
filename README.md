@@ -29,14 +29,16 @@ No npm packages are required.
 
 4. Save the file. Stop the running local server with **Ctrl+C**, then start it again using `node .\server.js`.
 5. Reload the site. The AI status near the scan controls should show **Google Gemini ready**.
-6. Add/take a photo and choose **Analyze photo with Gemini**, then save the result to your browser history. In the activity dashboard choose **Generate smart report** to preview per-item image-analysis details, model confidence and timestamp, recommendations, recorded simulated lifecycle events, and evidence/limitations. Gemini adds an optional narrative; if it is unavailable, the factual saved-data report still works. **Build offline report** never calls Gemini.
+6. Add a photo or choose **Take a photo** for an inline live camera preview. Capture is local and does not start analysis; choose **Analyze photo with Gemini** when you are ready, then save the result to your browser history. In the activity dashboard choose **Generate smart report** to preview per-item image-analysis details, model confidence and timestamp, recommendations, recorded simulated lifecycle events, and evidence/limitations. Gemini adds an optional narrative; if it is unavailable, the factual saved-data report still works. **Build offline report** never calls Gemini.
 7. Use **Print / Save PDF** to open the browser print dialog and select **Save as PDF**. **Download data JSON**, **Copy report**, and **Download .md** export saved analysis and report content. The preview provides an image thumbnail when available; it does not embed the full-resolution upload.
 
 The `.env` file is ignored by Git and blocked from the static web server. The API key is read only by the local server; it is not placed in the page, browser storage, or frontend JavaScript. Do not paste the key into chat, screenshots, source code, or a committed file. If you suspect it was exposed, revoke it in AI Studio and create a replacement.
 
+Use the header theme button to cycle **Light**, **Dark**, and **3D** themes. The selected theme is saved in this browser; on first visit, the operating system's light/dark preference is used. Live camera preview requires browser permission and a secure context (localhost is supported); if live preview is unavailable, use the device camera/file-picker fallback.
+
 ## What gets sent to Gemini
 
-- **Photo analysis:** an optimized JPEG copy (scaled to a maximum 1280-pixel edge) of the image selected for AI analysis, plus a short classification/safety instruction. The browser-only preview is not sent until you explicitly click the Gemini analysis button. Resizing reduces upload and model-processing time; image details may be reduced.
+- **Photo analysis:** an optimized JPEG copy (scaled to a maximum 1280-pixel edge) of the image selected for AI analysis, plus a short classification/safety instruction. This includes a captured photo only after you explicitly click the Gemini analysis button; capture itself only creates a local preview. Resizing reduces upload and model-processing time; image details may be reduced.
 - **AI report narrative:** material category, item label, sample/manual/AI origin, simulated lifecycle stage, analysis timestamp/model, recorded event history, and sanitized AI estimate details. Original photos and report thumbnails are not sent.
 - **Offline project report:** generated entirely in the browser from saved records; nothing is sent to Gemini.
 

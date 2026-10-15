@@ -392,6 +392,11 @@ const server = http.createServer(async (request, response) => {
     return;
   }
 
+  if (pathname.includes("\0")) {
+    response.writeHead(400).end("Bad request");
+    return;
+  }
+
   if (pathname.startsWith("/api/")) {
     await handleApi(request, response, pathname);
     return;

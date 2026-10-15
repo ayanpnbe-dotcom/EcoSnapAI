@@ -67,6 +67,13 @@ const categories = {
 const stageOrder = ["identified", "sorted", "recovery", "reuse"];
 const stageLabels = { identified: "Identified", sorted: "Sorted", recovery: "Recovery", reuse: "Reuse" };
 const storageKey = "ecosnapai-material-records-v1";
+const themeStorageKey = "ecosnapai-theme-v1";
+const themeOrder = ["light", "dark", "3d"];
+const themeDetails = {
+  light: { name: "Light", next: "Dark", color: "#f1f5e9" },
+  dark: { name: "Dark", next: "3D", color: "#10271b" },
+  "3d": { name: "3D", next: "Light", color: "#100d18" },
+};
 let currentCategory = "plastic";
 let currentIsSample = true;
 let currentPhotoUrl = "";
@@ -81,6 +88,8 @@ let generatedReport = "";
 let modelConfigured = false;
 let records = [];
 let toastTimer;
+let cameraStream = null;
+let cameraRequestId = 0;
 
 const $ = (selector) => document.querySelector(selector);
 const toast = $("#toast");
@@ -91,6 +100,168 @@ function announce(message) {
   window.clearTimeout(toastTimer);
   toastTimer = window.setTimeout(() => toast.classList.remove("visible"), 2600);
 }
+
+function applyTheme(theme, persist = false) {
+  if (!themeOrder.includes(theme)) return;
+  document.documentElement.dataset.theme = theme;
+  document.documentElement.style.colorScheme = theme === "light" ? "light" : "dark";
+  $("meta[name='theme-color']").content = themeDetails[theme].color;
+  $("#theme-toggle").dataset.iconMode = theme;
+  $("#theme-name").textContent = themeDetails[theme].name;
+  $("#theme-toggle").setAttribute(
+    "aria-label",
+    `Color theme: ${themeDetails[theme].name}. Activate to switch to ${themeDetails[theme].next}.`
+  );
+  $("#theme-toggle").title = `Color theme: ${themeDetails[theme].name}`;
+  if (persist) {
+    try {
+      localStorage.setItem(themeStorageKey, theme);
+    } catch (error) {
+      console.error("EcoSnapAI could not save the selected theme.", error);
+      announce("Theme changed, but this browser could not save your choice.");
+    }
+  }
+}
+
+function cycleTheme() {
+  const current = document.documentElement.dataset.theme;
+  const next = themeOrder[(themeOrder.indexOf(current) + 1) % themeOrder.length];
+  applyTheme(next, true);
+}
+
+function stopCamera(closePanel = true) {
+  cameraRequestId += 1;
+  if (cameraStream) {
+    cameraStream.getTracks().forEach((track) => track.stop());
+    cameraStream = null;
+  }
+  const video = $("#camera-preview");
+  video.pause();
+  video.srcObject = null;
+  video.hidden = true;
+  $("#capture-photo").disabled = true;
+  if (closePanel) {
+    $("#camera-panel").hidden = true;
+    $("#camera-message").textContent = "";
+  }
+}
+
+function cameraErrorMessage(error) {
+  if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError" || error.name === "SecurityError") {
+    return "Camera permission was blocked. Allow camera access in your browser settings, or use the device camera/file picker.";
+  }
+  if (error.name === "NotFoundError" || error.name === "DevicesNotFoundError") {
+    return "No camera was found on this device. Use the device camera or choose a photo instead.";
+  }
+  if (error.name === "NotReadableError" || error.name === "TrackStartError" || error.name === "AbortError") {
+    return "The camera is busy or could not be started. Close other apps using it, or choose a photo instead.";
+  }
+  if (error.name === "OverconstrainedError" || error.name === "TypeError") {
+    return "Live camera preview is unavailable here. Use the device camera or choose a photo instead.";
+  }
+  return "The camera could not be started. Check browser permissions, or use the device camera/file picker.";
+}
+
+async function openCamera() {
+  stopCamera();
+  const requestId = ++cameraRequestId;
+  const panel = $("#camera-panel");
+  const message = $("#camera-message");
+  panel.hidden = false;
+  message.textContent = "Requesting camera access…";
+
+  if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== "function") {
+    message.textContent = "Live camera preview is not supported in this browser or page context. Use the device camera or choose a photo instead.";
+    return;
+  }
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: { facingMode: { ideal: "environment" } },
+    });
+    if (requestId !== cameraRequestId) {
+      stream.getTracks().forEach((track) => track.stop());
+      return;
+    }
+
+    cameraStream = stream;
+    const video = $("#camera-preview");
+    video.srcObject = stream;
+    video.hidden = false;
+    await video.play();
+    if (requestId !== cameraRequestId || cameraStream !== stream) {
+      stream.getTracks().forEach((track) => track.stop());
+      return;
+    }
+    message.textContent = "Position the item in view, then capture when ready.";
+    $("#capture-photo").disabled = false;
+  } catch (error) {
+    if (requestId !== cameraRequestId) return;
+    stopCamera(false);
+    panel.hidden = false;
+    message.textContent = cameraErrorMessage(error);
+  }
+}
+
+function captureCameraPhoto() {
+  const video = $("#camera-preview");
+  const width = video.videoWidth;
+  const height = video.videoHeight;
+  if (!cameraStream || !width || !height) {
+    announce("The camera is not ready yet. Wait for the preview or choose a photo.");
+    return;
+  }
+
+  const scale = Math.min(1, 1280 / Math.max(width, height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(width * scale);
+  canvas.height = Math.round(height * scale);
+  const context = canvas.getContext("2d");
+  if (!context) {
+    announce("Could not capture this image. Use the device camera or choose a photo instead.");
+    return;
+  }
+  context.drawImage(video, 0, 0, canvas.width, canvas.height);
+  const requestId = cameraRequestId;
+  canvas.toBlob((blob) => {
+    if (requestId !== cameraRequestId) return;
+    if (!blob) {
+      announce("Could not encode the captured image. Please try again.");
+      return;
+    }
+    if (blob.size > 5 * 1024 * 1024) {
+      canvas.toBlob((smallerBlob) => {
+        if (requestId !== cameraRequestId) return;
+        if (!smallerBlob || smallerBlob.size > 5 * 1024 * 1024) {
+          announce("The captured photo is too large to use. Please try again or choose another image.");
+          return;
+        }
+        handlePhoto(new File([smallerBlob], `ecosnap-camera-${Date.now()}.jpg`, { type: "image/jpeg" }));
+        $("#camera-input").value = "";
+      }, "image/jpeg", 0.68);
+      return;
+    }
+    const file = new File([blob], `ecosnap-camera-${Date.now()}.jpg`, { type: "image/jpeg" });
+    handlePhoto(file);
+    $("#camera-input").value = "";
+  }, "image/jpeg", 0.88);
+}
+
+function openCameraFallback() {
+  stopCamera();
+  $("#camera-input").click();
+}
+
+const themePreference = window.matchMedia("(prefers-color-scheme: dark)");
+themePreference.addEventListener("change", (event) => {
+  try {
+    if (themeOrder.includes(localStorage.getItem(themeStorageKey))) return;
+  } catch (error) {
+    console.error("EcoSnapAI could not read the selected theme.", error);
+  }
+  applyTheme(event.matches ? "dark" : "light");
+});
 
 function loadRecords() {
   try {
@@ -137,6 +308,7 @@ function persistRecords() {
 }
 
 function setSample(category) {
+  stopCamera();
   if (currentPhotoUrl) {
     URL.revokeObjectURL(currentPhotoUrl);
     currentPhotoUrl = "";
@@ -151,6 +323,7 @@ function setSample(category) {
   currentPhotoName = "";
   currentPhotoFile = null;
   $("#photo-input").value = "";
+  $("#camera-input").value = "";
   $("#manual-review").hidden = true;
   $("#photo-preview").hidden = true;
   $("#photo-preview").removeAttribute("src");
@@ -216,15 +389,18 @@ function renderResult() {
 
 function handlePhoto(file) {
   if (!file) return;
+  stopCamera();
   const supported = ["image/png", "image/jpeg", "image/webp"].includes(file.type);
   if (!supported) {
     announce("Unsupported image. Choose a PNG, JPG or WebP file.");
     $("#photo-input").value = "";
+    $("#camera-input").value = "";
     return;
   }
   if (file.size > 5 * 1024 * 1024) {
     announce("That image is larger than 5 MB. Choose a smaller photo.");
     $("#photo-input").value = "";
+    $("#camera-input").value = "";
     return;
   }
   if (currentPhotoUrl) URL.revokeObjectURL(currentPhotoUrl);
@@ -1123,12 +1299,29 @@ function clearHistory() {
   announce("Material history cleared from this browser.");
 }
 
+$("#theme-toggle").addEventListener("click", cycleTheme);
+$("#camera-trigger").addEventListener("click", openCamera);
+$("#capture-photo").addEventListener("click", captureCameraPhoto);
+$("#cancel-camera").addEventListener("click", () => stopCamera());
+$("#camera-fallback").addEventListener("click", openCameraFallback);
+$("#photo-input").addEventListener("change", (event) => {
+  const input = event.currentTarget;
+  handlePhoto(input.files[0]);
+  input.value = "";
+});
+$("#camera-input").addEventListener("change", (event) => {
+  const input = event.currentTarget;
+  handlePhoto(input.files[0]);
+  input.value = "";
+});
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) stopCamera();
+});
+window.addEventListener("pagehide", () => stopCamera());
+
 document.querySelectorAll("[data-sample]").forEach((button) => {
   button.addEventListener("click", () => setSample(button.dataset.sample));
 });
-$("#photo-input").addEventListener("change", (event) => handlePhoto(event.currentTarget.files[0]));
-$("#camera-input").addEventListener("change", (event) => handlePhoto(event.currentTarget.files[0]));
-$("#camera-trigger").addEventListener("click", () => $("#camera-input").click());
 $("#analyze-photo").addEventListener("click", analyzePhoto);
 $("#reset-scan").addEventListener("click", () => {
   setSample("plastic");

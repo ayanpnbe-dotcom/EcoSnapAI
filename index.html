@@ -6,6 +6,25 @@
     <meta name="theme-color" content="#f1f5e9" />
     <meta name="description" content="EcoSnapAI helps you understand what an item is, where it may go, and how its material journey can be tracked." />
     <title>EcoSnapAI — Give good materials a next chapter</title>
+    <script>
+      (() => {
+        const key = "ecosnapai-theme-v1";
+        let theme;
+        try {
+          theme = localStorage.getItem(key);
+        } catch (error) {
+          console.error("EcoSnapAI could not read the saved theme.", error);
+          theme = null;
+        }
+        if (!["light", "dark", "3d"].includes(theme)) {
+          theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        }
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.style.colorScheme = theme === "light" ? "light" : "dark";
+        document.querySelector('meta[name="theme-color"]').content =
+          theme === "light" ? "#f1f5e9" : theme === "dark" ? "#10271b" : "#100d18";
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
@@ -25,8 +44,29 @@
         <a href="#technology">Technology</a>
         <a href="#twin">Our impact</a>
       </nav>
-      <a class="button button-dark header-cta" href="#scan">Try the demo <span aria-hidden="true">↗</span></a>
+      <div class="header-actions">
+        <button class="theme-toggle" id="theme-toggle" data-icon-mode="light" type="button" aria-label="Color theme: Light. Activate to switch to Dark." title="Color theme: Light">
+          <span id="theme-icon" aria-hidden="true"><span class="theme-icon-sun">☀</span><span class="theme-icon-moon">☾</span><svg class="theme-icon-cube" viewBox="0 0 20 20" focusable="false"><path d="M10 1.8 17.4 6v8L10 18.2 2.6 14V6L10 1.8Z M2.8 6.1 10 10.2l7.2-4.1M10 10.2v7.7M6.3 4l7.4 4.2v4.1l-3.7 2.1" /></svg></span><span id="theme-name">Light</span>
+        </button>
+        <a class="button button-dark header-cta" href="#scan">Try the demo <span aria-hidden="true">↗</span></a>
+      </div>
     </header>
+    <script>
+      (() => {
+        const theme = document.documentElement.dataset.theme;
+        const details = {
+          light: ["Light", "Dark"],
+          dark: ["Dark", "3D"],
+          "3d": ["3D", "Light"],
+        }[theme];
+        const button = document.getElementById("theme-toggle");
+        if (!details || !button) return;
+        button.dataset.iconMode = theme;
+        document.getElementById("theme-name").textContent = details[0];
+        button.setAttribute("aria-label", `Color theme: ${details[0]}. Activate to switch to ${details[1]}.`);
+        button.title = `Color theme: ${details[0]}`;
+      })();
+    </script>
 
     <main id="main">
       <section class="hero" id="top" aria-labelledby="hero-title">
@@ -81,7 +121,7 @@
           <div class="section-label"><span>03</span><span class="label-line"></span><span>Try the prototype</span></div>
           <div class="scan-heading">
             <div><p class="eyebrow eyebrow-green">A little clarity, on demand</p><h2 id="scan-title">Meet your next<br /><em>right step.</em></h2></div>
-            <p>Choose a sample item or upload a photo. When Gemini is configured, EcoSnapAI can estimate the material and prepare a careful, clearly labelled item report.</p>
+            <p>Choose a sample, upload a photo, or capture one live. When Gemini is configured, EcoSnapAI can estimate the material and prepare a careful, clearly labelled item report.</p>
           </div>
           <div class="scan-workspace">
             <div class="scan-controls">
@@ -96,15 +136,27 @@
                   <button class="sample-button" type="button" data-sample="hazardous" aria-pressed="false"><span>⚠</span><b>Battery</b><small>Special handling</small></button>
                 </div>
               </div>
-              <label class="upload-box" for="photo-input">
-                <input id="photo-input" type="file" accept="image/png,image/jpeg,image/webp" />
-                <span class="upload-icon" aria-hidden="true">＋</span><span><b>Add a photo</b><small>PNG, JPG or WebP · up to 5 MB · preview stays on this device</small></span><span class="upload-arrow" aria-hidden="true">↗</span>
-              </label>
+              <div class="photo-options" role="group" aria-label="Add an item photo">
+                <label class="upload-box" for="photo-input">
+                  <input id="photo-input" type="file" accept="image/png,image/jpeg,image/webp" />
+                  <span class="upload-icon" aria-hidden="true">＋</span><span><b>Add a photo</b><small>Choose from your device</small></span><span class="upload-arrow" aria-hidden="true">↗</span>
+                </label>
+                <input id="camera-input" type="file" accept="image/png,image/jpeg,image/webp" capture="environment" />
+                <button id="camera-trigger" type="button" class="camera-option"><span class="camera-option-icon" aria-hidden="true">◎</span><span class="camera-option-copy"><b>Take a photo</b><small>Open live camera</small></span><span class="camera-option-arrow" aria-hidden="true">↗</span></button>
+              </div>
+              <p class="photo-hint">PNG, JPG or WebP · up to 5 MB · preview stays on this device</p>
+              <section class="camera-panel" id="camera-panel" aria-label="Live camera" hidden>
+                <video id="camera-preview" aria-label="Live camera preview" autoplay playsinline muted hidden></video>
+                <p class="camera-message" id="camera-message" role="status" aria-live="polite"></p>
+                <div class="camera-controls">
+                  <button id="capture-photo" type="button" class="button button-dark" disabled>Capture photo</button>
+                  <button id="camera-fallback" type="button" class="utility-button">Use device camera or choose a file</button>
+                  <button id="cancel-camera" type="button" class="plain-button">Cancel</button>
+                </div>
+              </section>
               <button id="analyze-photo" type="button" class="button button-dark analyze-button" disabled><span>✳</span> Analyze photo with Gemini <span aria-hidden="true">↗</span></button>
               <div class="model-status" id="model-status" role="status"><i></i><span>Checking AI connection…</span><a href="./README.md" target="_blank" rel="noreferrer">Setup steps</a></div>
               <div class="scan-extra-actions">
-                <input id="camera-input" type="file" accept="image/png,image/jpeg,image/webp" capture="environment" />
-                <button id="camera-trigger" type="button" class="plain-button">◎ Take a photo</button>
                 <button id="reset-scan" type="button" class="plain-button">↺ Start over</button>
               </div>
               <div class="manual-review" id="manual-review" hidden>
