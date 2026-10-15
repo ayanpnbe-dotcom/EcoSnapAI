@@ -209,6 +209,7 @@ function validateReportInput(input) {
       throw Object.assign(new Error("A report record contains an unsupported category or lifecycle stage."), { status: 400 });
     }
     const safeRecord = {
+      id: cleanText(record.id, "record id not recorded", 100),
       category: record.category,
       itemName: cleanText(record.itemName, "Unidentified item", 100),
       status: record.status,
@@ -216,8 +217,21 @@ function validateReportInput(input) {
       createdAt: typeof record.createdAt === "string" && !Number.isNaN(Date.parse(record.createdAt))
         ? new Date(record.createdAt).toISOString()
         : null,
-      eventCount: Array.isArray(record.events) ? Math.min(record.events.length, 50) : 0,
+      analysisAt: typeof record.analysisAt === "string" && !Number.isNaN(Date.parse(record.analysisAt))
+        ? new Date(record.analysisAt).toISOString()
+        : null,
+      analysisModel: cleanText(record.analysisModel, "not recorded", 80),
+      events: Array.isArray(record.events)
+        ? record.events.slice(0, 50).filter((event) =>
+          event && allowedStages.has(event.status) && typeof event.at === "string" && !Number.isNaN(Date.parse(event.at))
+        ).map((event) => ({
+          status: event.status,
+          at: new Date(event.at).toISOString(),
+          note: cleanText(event.note, "Lifecycle event recorded", 120),
+        }))
+        : [],
     };
+    safeRecord.eventCount = safeRecord.events.length;
     if (record.source === "ai-model" && record.aiSummary && typeof record.aiSummary === "object") {
       const confidence = Number(record.aiSummary.confidence);
       safeRecord.aiEstimate = {
@@ -322,28 +336,12 @@ Treat appearance as uncertain evidence, not proof. Never assert resin, compositi
 
     const safeInput = validateReportInput(input);
     const modelResponse = await callGemini(
-      `Write a thorough, presentation-ready hackathon product report in Markdown for EcoSnapAI, a Smart Recycling Assistant.
-The supplied JSON is the complete source of prototype record facts and counts. The actual implementation is a static HTML/CSS/vanilla JavaScript frontend, a Node.js server using built-in modules, Gemini API calls made server-side with a local .env key, and browser localStorage for records. It has no React or React Native, Firebase, Firestore, account system, cloud database, municipal-rule integration, smart-bin integration, or measured recycling outcomes. The UI supports sample/manual review, photo preview, image upload/camera input, Gemini visual estimate, saving browser-local records, category/date/stage filters, category breakdown, simulated lifecycle advancement, CSV export, record removal, and clearing history. Do not describe features not on this list.
-Treat every lifecycle stage as simulated. Distinguish browser-observed record counts from AI visual estimates, manual reviews, and sample fixtures. Repeat supplied counts exactly. Do not invent user research, deployments, accuracy results, costs, environmental impact, partnerships, real-time performance, mobile apps, persistence, or operational outcomes. State that no local disposal rules are integrated. If records are empty, state that no user records have been collected.
-Include these sections with substantive, specific content:
-# EcoSnapAI — Smart Recycling Assistant
-## Executive summary
-## Problem and target users
-## Proposed solution and value proposition
-## Product features and user journey
-## AI item analysis and response fields
-## Architecture and data flow
-## Material twin and dashboard
-## Current prototype data
-## Safety, privacy and accessibility
-## Limitations and assumptions
-## Success metrics and validation plan
-## Risks and mitigations
-## Roadmap
-## Two-minute judge demonstration
-Target roughly 700–900 words so the report is useful but returns promptly. For each metric, explain how it would be measured rather than claiming a result. Describe only the implementation facts specified above and in the supplied records. If a detail is not supplied, say it is not implemented or not measured. Be useful to judges and developers, avoid generic filler, and label AI output and simulated activity as prototype behavior.
-
-Prototype data (summary is authoritative for counts; use record details only to explain composition):
+      `Write a concise, clear, item-focused Smart Recycling report in Markdown for EcoSnapAI.
+The sanitized JSON below is the complete source of saved-record facts. The original image is not sent with this report request. Image thumbnails are kept in the browser; describe only the recorded model fields as visual estimates. The app stores records in browser localStorage and uses a vanilla JavaScript frontend, a Node.js server with built-in modules and Gemini API calls server-side.
+Include: an executive summary using the exact saved-record and AI-estimate counts; one clearly labelled subsection for every saved item, with the actual category, item name, model confidence if available, visible material, condition, observed-evidence note, recorded preparation/reuse advice and recorded AI model/time if present; the actual event history and current journey stage for each record; practical next steps that do not pretend to know the user's local rules; safety and uncertainty warnings; environmental impact, weight and recovery values marked "Insufficient data to calculate" when missing; data provenance; limitations; and a final action checklist.
+If there are multiple saved items, include a compact itemized table, then use the individual record fields for details. If there is one item, prioritize its actual analysis details. If there are no records, state that plainly and do not invent an example. Use concise language and make the report useful to both ordinary users and hackathon judges.
+Every stage is a software simulation, not physical tracking. Event entries are user-interface records, not sensor evidence. There are no connected collection services, facilities, verified destinations, object bounding boxes, secondary predictions, measured weights, environmental calculation factors, or local recycling-rule lookups. Never infer those facts. Do not claim that any item was actually recycled, collected, reused, composted, diverted, or processed. Do not invent confidence, predictions, hazard facts, environmental statistics, user research, accuracy, deployments, costs, partnerships, or system capabilities. Distinguish AI estimates, manual reviews, and sample fixtures. Treat potentially hazardous or uncertain items conservatively; never recommend opening, burning, dismantling, or handling a damaged item.
+Data to report (counts and sanitized record fields are authoritative):
 ${JSON.stringify(safeInput, null, 2)}
 
 Return JSON only in this exact shape: {"reportMarkdown":"...the complete Markdown report as a JSON string..."}.`,

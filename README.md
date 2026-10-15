@@ -1,6 +1,6 @@
 # EcoSnapAI
 
-Hackathon prototype for the Smart Recycling Assistant track. The local app combines sample/manual material review, optional Gemini image analysis, a simulated Digital Twin, browser-local history, a Gemini-generated project report, and a local offline report option.
+Hackathon prototype for the Smart Recycling Assistant track. The local app combines sample/manual material review, optional Gemini image analysis, a simulated Digital Twin, browser-local history, and an evidence-grounded recycling report with an optional Gemini narrative.
 
 ## Run locally
 
@@ -29,23 +29,26 @@ No npm packages are required.
 
 4. Save the file. Stop the running local server with **Ctrl+C**, then start it again using `node .\server.js`.
 5. Reload the site. The AI status near the scan controls should show **Google Gemini ready**.
-6. Add/take a photo and choose **Analyze photo with Gemini**, or use **Generate AI report** in the activity dashboard. If Gemini is unavailable or the local request fails, the AI report button automatically creates a clearly labelled offline fallback. **Build offline report** compiles a detailed report instantly from this browser's saved records without calling Gemini.
+6. Add/take a photo and choose **Analyze photo with Gemini**, then save the result to your browser history. In the activity dashboard choose **Generate smart report** to preview per-item image-analysis details, model confidence and timestamp, recommendations, recorded simulated lifecycle events, and evidence/limitations. Gemini adds an optional narrative; if it is unavailable, the factual saved-data report still works. **Build offline report** never calls Gemini.
+7. Use **Print / Save PDF** to open the browser print dialog and select **Save as PDF**. **Download data JSON**, **Copy report**, and **Download .md** export saved analysis and report content. The preview provides an image thumbnail when available; it does not embed the full-resolution upload.
 
 The `.env` file is ignored by Git and blocked from the static web server. The API key is read only by the local server; it is not placed in the page, browser storage, or frontend JavaScript. Do not paste the key into chat, screenshots, source code, or a committed file. If you suspect it was exposed, revoke it in AI Studio and create a replacement.
 
 ## What gets sent to Gemini
 
 - **Photo analysis:** an optimized JPEG copy (scaled to a maximum 1280-pixel edge) of the image selected for AI analysis, plus a short classification/safety instruction. The browser-only preview is not sent until you explicitly click the Gemini analysis button. Resizing reduces upload and model-processing time; image details may be reduced.
-- **AI project report:** material category, item label, sample/manual/AI origin, simulated lifecycle stage, timestamp, event count, and sanitized AI estimate details. Photos and API keys are not included.
+- **AI report narrative:** material category, item label, sample/manual/AI origin, simulated lifecycle stage, analysis timestamp/model, recorded event history, and sanitized AI estimate details. Original photos and report thumbnails are not sent.
 - **Offline project report:** generated entirely in the browser from saved records; nothing is sent to Gemini.
 
-Records remain in this browser's `localStorage`; this prototype has no account system or server database. Use demo/sample records for a public hackathon demonstration and get consent before sending identifiable or sensitive images to an external AI provider.
+Records and small optional thumbnails for up to four recent analyzed photos remain in this browser's `localStorage`; this prototype has no account system or server database. Full-size photos remain only in the current browser session and are not included in report requests. Use demo/sample records for a public hackathon demonstration and get consent before sending identifiable or sensitive images to an external AI provider.
 
 ## Prototype limitations
 
 - Gemini's image classification and confidence are estimates, not validated model accuracy. Review uncertain results.
 - Disposal advice is general and does not look up or verify local recycling rules.
 - The material lifecycle is simulated. A saved record does not prove the item was collected, recycled, or reused.
+- The report shows saved analysis fields and recorded events but cannot verify material composition, object counts in a photo, collection, processing, or final outcomes. Weight, diversion, energy and emissions figures are not calculated when measured inputs and documented factors are unavailable.
+- PDF output uses the browser's print dialog; choose **Save as PDF** there. Page layout and available page-number support depend on the browser.
 - The generated report identifies simulated activity and avoids asserting unmeasured environmental impact.
 - Gemini requests use your API quota and can fail due to network, quota, temporary provider load, region, model, or key access. Use **Build offline report** when Gemini is unavailable.
 

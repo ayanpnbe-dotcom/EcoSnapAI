@@ -74,6 +74,9 @@ let currentPhotoName = "";
 let currentPhotoFile = null;
 let currentSource = "sample";
 let currentAiAnalysis = null;
+let currentAnalysisModel = "";
+let currentAnalysisAt = "";
+let currentReportThumbnail = "";
 let generatedReport = "";
 let modelConfigured = false;
 let records = [];
@@ -99,6 +102,13 @@ function loadRecords() {
       !stageOrder.includes(record.status) || !Array.isArray(record.events) ||
       typeof record.itemName !== "string" || typeof record.createdAt !== "string" ||
       Number.isNaN(Date.parse(record.createdAt)) ||
+      (record.analysisAt != null && Number.isNaN(Date.parse(record.analysisAt))) ||
+      (record.analysisModel != null && typeof record.analysisModel !== "string") ||
+      (record.photoThumbnail !== undefined &&
+        record.photoThumbnail != null && record.photoThumbnail !== "" &&
+        (typeof record.photoThumbnail !== "string" ||
+          !/^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/.test(record.photoThumbnail) ||
+          record.photoThumbnail.length > 70000)) ||
       !["sample", "manual-review", "ai-model"].includes(record.source) ||
       !record.events.every((entry) =>
         entry && stageOrder.includes(entry.status) && typeof entry.at === "string" &&
@@ -135,6 +145,9 @@ function setSample(category) {
   currentIsSample = true;
   currentSource = "sample";
   currentAiAnalysis = null;
+  currentAnalysisModel = "";
+  currentAnalysisAt = "";
+  currentReportThumbnail = "";
   currentPhotoName = "";
   currentPhotoFile = null;
   $("#photo-input").value = "";
@@ -222,6 +235,9 @@ function handlePhoto(file) {
   currentIsSample = false;
   currentSource = "manual-review";
   currentAiAnalysis = null;
+  currentAnalysisModel = "";
+  currentAnalysisAt = "";
+  currentReportThumbnail = "";
   $("#analyze-photo").disabled = !modelConfigured;
   $("#photo-preview").src = currentPhotoUrl;
   $("#photo-preview").hidden = false;
@@ -246,6 +262,9 @@ function reviewPhoto() {
   currentIsSample = false;
   currentSource = "manual-review";
   currentAiAnalysis = null;
+  currentAnalysisModel = "";
+  currentAnalysisAt = "";
+  currentReportThumbnail = "";
   $("#result-mode").textContent = "MANUAL REVIEW";
   renderResult();
   $("#result-disclaimer").textContent = "Manual category review. Not a computer-vision prediction; no confidence score is available.";
@@ -268,6 +287,9 @@ function saveScan() {
     location: $("#location-select").value,
     status: stageOrder[0],
     createdAt: now,
+    analysisAt: currentSource === "ai-model" ? currentAnalysisAt : null,
+    analysisModel: currentSource === "ai-model" ? currentAnalysisModel : null,
+    photoThumbnail: currentSource === "ai-model" ? currentReportThumbnail : "",
     aiSummary: currentAiAnalysis ? {
       itemName: currentAiAnalysis.itemName,
       material: currentAiAnalysis.material,
@@ -283,9 +305,15 @@ function saveScan() {
     } : null,
     events: [{ status: stageOrder[0], at: now, note: "Material record created" }],
   };
-  records = [record, ...records];
+  const previousRecords = records;
+  let retainedThumbnails = 0;
+  records = [record, ...records].map((savedRecord) => {
+    if (!savedRecord.photoThumbnail) return savedRecord;
+    retainedThumbnails += 1;
+    return retainedThumbnails <= 4 ? savedRecord : { ...savedRecord, photoThumbnail: "" };
+  });
   if (!persistRecords()) {
-    records.shift();
+    records = previousRecords;
     return;
   }
   renderDashboard();
@@ -573,23 +601,23 @@ async function checkModelStatus() {
     status.querySelector("i").classList.toggle("ready", modelConfigured);
     status.querySelector("span").textContent = modelConfigured
       ? `${result.provider} ready · ${result.model}`
-      : "AI not configured · add a key for photo analysis and reports";
+      : "AI not configured · saved-data reporting works offline";
     status.title = modelConfigured
       ? "Your API key is stored on the local server and is not sent to the browser."
       : "Follow the local setup steps in README.md; restart the server after adding your key.";
     $("#analyze-photo").disabled = !modelConfigured || !currentPhotoName;
     $("#report-model-note").textContent = modelConfigured
-      ? `Report model · ${result.model} · local records only`
-      : "Add a Gemini API key to enable report generation. Manual scanning works without one.";
-    $("#generate-report").disabled = !modelConfigured;
+      ? `Optional Gemini narrative · ${result.model} · saved details stay local`
+      : "The saved-data report works offline. Add a Gemini key for an optional AI narrative.";
+    $("#generate-report").disabled = false;
   } catch (error) {
     modelConfigured = false;
     status.classList.remove("configured");
     status.querySelector("i").classList.remove("ready");
     status.querySelector("span").textContent = "AI server unavailable · local demo still works";
     $("#analyze-photo").disabled = true;
-    $("#generate-report").disabled = true;
-    $("#report-model-note").textContent = error.message || "Start the local server to connect Gemini.";
+    $("#generate-report").disabled = false;
+    $("#report-model-note").textContent = "The saved-data report works offline; start the local server to add Gemini narrative.";
   }
 }
 
@@ -643,6 +671,35 @@ async function readFileAsBase64(file) {
   });
 }
 
+async function makeReportThumbnail(file) {
+  if (typeof createImageBitmap !== "function") return "";
+  const bitmap = await createImageBitmap(file);
+  const maxDimension = 260;
+  const scale = Math.min(1, maxDimension / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  const context = canvas.getContext("2d");
+  if (!context) {
+    bitmap.close();
+    throw new Error("Could not prepare a small report thumbnail.");
+  }
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.48));
+  if (!blob || blob.size > 50000) return "";
+  const dataUrl = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", () => {
+      if (typeof reader.result === "string") resolve(reader.result);
+      else reject(new Error("Could not read the report thumbnail."));
+    });
+    reader.addEventListener("error", () => reject(new Error("Could not read the report thumbnail.")));
+    reader.readAsDataURL(blob);
+  });
+  return dataUrl;
+}
+
 async function analyzePhoto() {
   const file = currentPhotoFile;
   if (!file) {
@@ -673,6 +730,14 @@ async function analyzePhoto() {
     currentCategory = result.analysis.category;
     currentSource = "ai-model";
     currentIsSample = false;
+    currentAnalysisModel = result.model;
+    currentAnalysisAt = new Date().toISOString();
+    currentReportThumbnail = "";
+    try {
+      currentReportThumbnail = await makeReportThumbnail(file);
+    } catch (thumbnailError) {
+      console.warn("EcoSnapAI could not prepare an optional report thumbnail.", thumbnailError);
+    }
     $("#result-mode").textContent = `AI VISUAL ESTIMATE · ${result.model}`;
     $("#result-disclaimer").textContent = "AI-generated visual estimate. Not a verified local rule or proof an item is recyclable. Review uncertain and hazardous items carefully.";
     renderResult();
@@ -684,6 +749,10 @@ async function analyzePhoto() {
     $("#confidence-badge").textContent = "No AI result";
     $("#rule-source").textContent = "No prediction saved · photo can still be reviewed manually";
     $("#result-disclaimer").textContent = "No model result was produced. You can retry the analysis or select a category for manual review.";
+    currentAiAnalysis = null;
+    currentAnalysisModel = "";
+    currentAnalysisAt = "";
+    currentReportThumbnail = "";
     announce(error.message || "Could not analyze this photo.");
   } finally {
     button.classList.remove("is-loading");
@@ -693,12 +762,87 @@ async function analyzePhoto() {
 }
 
 function showGeneratedReport(report, meta) {
-  generatedReport = report;
-  $("#report-text").textContent = report;
+  const reportId = `ECO-${new Date().toISOString().replace(/\D/g, "").slice(0, 14)}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+  $("#report-id").textContent = reportId;
+  const generatedAt = new Date().toLocaleString();
+  $("#report-generated-at").textContent = generatedAt;
+  generatedReport = `> Report ID: ${reportId} · Generated: ${generatedAt}\n\n${report}`;
   $("#report-meta").textContent = meta;
+  $("#report-dashboard").innerHTML = renderReportDashboard(meta);
+  $("#report-text").textContent = generatedReport;
   $("#report-error").hidden = true;
   $("#report-output").hidden = false;
   $("#report-output").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function renderReportDashboard(meta) {
+  const hasAiNarrative = meta.startsWith("Generated with ");
+  const aiCount = records.filter((record) => record.source === "ai-model" && record.aiSummary).length;
+  const reviewCount = records.filter((record) =>
+    record.category === "unknown" || record.source === "manual-review" || record.aiSummary?.needsReview
+  ).length;
+  const itemCards = records.length
+    ? records.map((record) => {
+      const category = categories[record.category];
+      const estimate = record.aiSummary;
+      const confidence = record.source === "ai-model" && Number.isFinite(estimate?.confidence)
+        ? `${Math.round(estimate.confidence * 100)}%`
+        : "Not available";
+      const source = record.source === "ai-model"
+        ? `AI visual estimate${record.analysisModel ? ` · ${escapeHtml(record.analysisModel)}` : ""}`
+        : record.source === "manual-review" ? "Manual review" : "Sample/demo record";
+      const thumbnail = record.photoThumbnail
+        ? `<img class="report-item-image" src="${record.photoThumbnail}" alt="Thumbnail of analyzed ${escapeHtml(record.itemName)}" />`
+        : `<div class="report-item-image report-image-empty" role="img" aria-label="No saved report image for ${escapeHtml(record.itemName)}"><span>PHOTO</span><small>Not retained</small></div>`;
+      const details = estimate
+        ? `<dl class="report-detail-grid">
+            <div><dt>Visible material</dt><dd>${escapeHtml(estimate.material || "Not recorded")}</dd></div>
+            <div><dt>Condition</dt><dd>${escapeHtml(estimate.condition || "Unknown")}</dd></div>
+            <div><dt>Visible evidence</dt><dd>${escapeHtml(estimate.explanation || "Not recorded")}</dd></div>
+            <div><dt>Preparation</dt><dd>${escapeHtml(estimate.preparation || "Not recorded")}</dd></div>
+            <div><dt>Reuse / repair</dt><dd>${escapeHtml(estimate.reuseOption || "Not recorded")}</dd></div>
+            <div><dt>Analysis time</dt><dd>${record.analysisAt ? escapeHtml(new Date(record.analysisAt).toLocaleString()) : "Not recorded"}</dd></div>
+          </dl>`
+        : `<p class="report-no-estimate">${record.source === "sample" ? "Demonstration fixture; not a computer-vision result." : "No AI prediction is stored for this manual review."}</p>`;
+      const warning = record.category === "hazardous" || estimate?.hazardous
+        ? `<p class="report-warning" role="note"><strong>Potential hazard:</strong> ${escapeHtml(estimate?.caveat || "Keep separate from ordinary waste. Do not open, test, burn, or handle damaged items; check with an authorized local service.")}</p>`
+        : estimate?.needsReview || record.category === "unknown"
+          ? `<p class="report-warning report-warning-review" role="note"><strong>Needs human verification:</strong> ${escapeHtml(estimate?.caveat || "The item is uncertain; do not rely on a visual estimate as a verified disposal instruction.")}</p>`
+          : "";
+      const action = estimate?.action || category.advice;
+      const events = [...record.events].sort((left, right) => Date.parse(left.at) - Date.parse(right.at));
+      const eventMarkup = events.length
+        ? events.map((event) => `<li><span class="report-event-dot"></span><div><strong>${escapeHtml(stageLabels[event.status])}</strong><p>${escapeHtml(event.note)}</p><time datetime="${escapeHtml(event.at)}">${escapeHtml(new Date(event.at).toLocaleString())}</time></div></li>`).join("")
+        : "<li><div><strong>No lifecycle events recorded</strong></div></li>";
+      return `<article class="report-item-card">
+        <div class="report-item-heading">${thumbnail}<div class="report-item-title"><span class="report-category-badge category-${record.category}">${escapeHtml(category.label)}</span><h4>${escapeHtml(record.itemName)}</h4><p>${source}</p><code>${escapeHtml(record.id)}</code></div></div>
+        ${warning}
+        <div class="report-item-stats"><div><span>AI confidence</span><strong>${confidence}</strong></div><div><span>Current twin stage</span><strong>${escapeHtml(stageLabels[record.status])} <small>· simulated</small></strong></div><div><span>Quantity</span><strong>Not measured <small>· 1 saved record</small></strong></div></div>
+        <section class="report-subsection"><h5>Computer vision record</h5>${details}<p class="report-caption">A saved AI result is a visual estimate, not proof of material composition or recycling acceptance. ${record.analysisModel ? `Model: ${escapeHtml(record.analysisModel)}.` : "Model version was not recorded."}</p></section>
+        <section class="report-subsection"><h5>Recommended next steps</h5><div class="report-recommendations"><div><span>01 · ACTION</span><p>${escapeHtml(action)}</p></div><div><span>02 · SAFE PREPARATION</span><p>${escapeHtml(estimate?.preparation || "Follow applicable local guidance; this prototype does not verify local rules.")}</p></div><div><span>03 · REUSE POSSIBILITY</span><p>${escapeHtml(estimate?.reuseOption || "Not assessed for this record.")}</p></div></div><p class="report-caption">No verified local drop-off locations are connected. Check your local authority before disposal.</p></section>
+        <section class="report-subsection"><h5>Digital Twin trace <small>software simulation · not physical tracking</small></h5><ol class="report-event-list">${eventMarkup}</ol><p class="report-caption">Collection, processing facility, destination and final recovery are not connected or evidenced.</p></section>
+      </article>`;
+    }).join("")
+    : `<div class="report-empty"><span aria-hidden="true">↻</span><h4>No saved material records yet</h4><p>Analyze an image and save the result, or save a clearly labelled sample/manual review. This report will then include its actual available details.</p><a href="#scan">Go to image analysis ↗</a></div>`;
+  const categoriesMarkup = Object.keys(categories)
+    .filter((category) => records.some((record) => record.category === category))
+    .map((category) => `<span class="report-category-badge category-${category}">${escapeHtml(categories[category].label)} <b>${records.filter((record) => record.category === category).length}</b></span>`)
+    .join("") || `<span class="report-caption">No material categories recorded.</span>`;
+  return `<div class="report-cover">
+    <div><span class="overline">ECOSNAPAI · SMART RECYCLING ASSISTANT</span><h2>Material <em>insight report</em></h2><p>Evidence from saved scans in this browser. AI estimates and simulated activity are identified separately.</p></div>
+    <div class="report-cover-id"><span>REPORT ID</span><strong>${escapeHtml($("#report-id").textContent)}</strong><small>${escapeHtml($("#report-generated-at").textContent)}</small></div>
+  </div>
+  <div class="report-kpi-grid">
+    <article><span>Saved material records</span><strong>${records.length}</strong><small>Observed in this browser</small></article>
+    <article><span>AI visual estimates</span><strong>${aiCount}</strong><small>Not validated accuracy</small></article>
+    <article><span>Needs human review</span><strong>${reviewCount}</strong><small>Uncertain, hazardous or manual</small></article>
+    <article><span>Recorded lifecycle events</span><strong>${records.reduce((total, record) => total + record.events.length, 0)}</strong><small>Software simulation only</small></article>
+  </div>
+  <section class="report-section"><div class="report-section-heading"><div><span class="overline">01 · MATERIAL SNAPSHOT</span><h3>What was recorded</h3></div><div class="report-category-list">${categoriesMarkup}</div></div><div class="report-item-list">${itemCards}</div></section>
+  <section class="report-section"><div class="report-section-heading"><div><span class="overline">02 · CIRCULARITY</span><h3>Impact, without guesswork</h3></div></div><div class="report-impact-grid"><article><span>Saved item records</span><strong>${records.length} items</strong><small>Count from this browser's saved records only.</small></article><article><span>Measured material weight</span><strong>Insufficient data</strong><small>No item weights were measured or supplied.</small></article><article><span>Diverted / recovered mass</span><strong>Insufficient data</strong><small>No collection or processing evidence is connected.</small></article><article><span>Energy / emissions benefit</span><strong>Not calculated</strong><small>No documented factor or verified outcome is available.</small></article></div><p class="report-caption">Reuse, recycling and composting can support a circular economy when the item and local pathway are verified. This prototype does not claim that a saved scan caused any environmental outcome.</p></section>
+  <section class="report-section report-checklist"><div class="report-section-heading"><div><span class="overline">03 · BEFORE YOU ACT</span><h3>Action checklist</h3></div></div><ul><li>Review low-confidence, unknown and potentially hazardous classifications with a person.</li><li>Check your local waste authority for accepted materials and current drop-off options.</li><li>Do not place batteries, chemicals, medical items or other suspected hazards in ordinary recycling.</li><li>Treat all journey stages as simulated unless a real collection or processing event is independently verified.</li></ul></section>
+  <details class="report-technical"><summary>Data provenance, assumptions and limitations</summary><ul><li>Saved records and event timestamps come from this browser's local storage; they are not shared across devices.</li><li>Only actual saved AI response fields are presented as computer-vision estimates. Small thumbnails for up to four recent photo records stay in this browser; photos and thumbnails are not sent with the report request.</li><li>No object bounding boxes, secondary predictions, measured weights, facility destinations or environmental calculations are implemented.</li><li>Lifecycle stages are software-simulated, not sensor-verified physical movements. Local disposal rules are not integrated.</li></ul></details>
+  <section class="report-ai-narrative"><h3>${hasAiNarrative ? "Gemini-generated project narrative" : "Offline project narrative"}</h3><p>${hasAiNarrative ? "The narrative uses sanitized saved record data; per-item facts above are rendered directly from this browser's records." : "This narrative is assembled locally. Per-item facts above are rendered directly from this browser's saved records."}</p><details class="report-technical report-markdown-details"><summary>Open the ${hasAiNarrative ? "Gemini" : "offline"} narrative</summary><pre id="report-text"></pre></details></section>`;
 }
 
 function reportSafeLine(value) {
@@ -726,7 +870,7 @@ function buildOfflineProjectReport() {
       const detail = estimate
         ? `; AI visual estimate ${Number.isFinite(estimate.confidence) ? `${Math.round(estimate.confidence * 100)}% confidence` : "without a confidence score"}${estimate.needsReview ? ", human review recommended" : ""}`
         : "";
-      return `- ${reportSafeLine(record.itemName) || "Unidentified item"} — ${categories[record.category].label}; ${stageLabels[record.status]} (simulated); ${record.source === "ai-model" ? "AI-assisted estimate" : record.source === "manual-review" ? "manual review" : "sample data"}${detail}.`;
+      return `- ${reportSafeLine(record.itemName) || "Unidentified item"} (ID ${reportSafeLine(record.id)}) — ${categories[record.category].label}; ${stageLabels[record.status]} (simulated); ${record.source === "ai-model" ? "AI-assisted estimate" : record.source === "manual-review" ? "manual review" : "sample data"}${detail}.`;
     }).join("\n")
     : "- No saved material records are present in this browser.";
   const aiDetails = records
@@ -737,6 +881,8 @@ function buildOfflineProjectReport() {
         `### ${reportSafeLine(record.itemName) || "Unidentified item"}`,
         `- Visible material: ${reportSafeLine(summary.material) || "Not recorded"}`,
         `- Condition: ${reportSafeLine(summary.condition) || "Unknown"}`,
+        `- Confidence: ${Number.isFinite(summary.confidence) ? `${Math.round(summary.confidence * 100)}% model estimate` : "Not recorded"}`,
+        `- Model and timestamp: ${reportSafeLine(record.analysisModel) || "Not recorded"} · ${record.analysisAt ? reportSafeLine(new Date(record.analysisAt).toLocaleString()) : "timestamp not recorded"}`,
         `- Suggested next step: ${reportSafeLine(summary.action) || "Not recorded"}`,
         `- Preparation: ${reportSafeLine(summary.preparation) || "Not recorded"}`,
         `- Reuse possibility: ${reportSafeLine(summary.reuseOption) || "Not recorded"}`,
@@ -744,6 +890,16 @@ function buildOfflineProjectReport() {
         `- Safety caveat: ${reportSafeLine(summary.caveat) || "AI estimate only; local rules are not verified."}`,
       ].join("\n");
     }).join("\n\n");
+  const twinDetails = records.length
+    ? records.map((record) => [
+      `### ${reportSafeLine(record.itemName) || "Unidentified item"} · ${reportSafeLine(record.id)}`,
+      `- Current stage: ${stageLabels[record.status]} (software simulation; not physical tracking).`,
+      ...(record.events.length
+        ? record.events.map((event) => `- ${stageLabels[event.status]} · ${new Date(event.at).toLocaleString()} · ${reportSafeLine(event.note)}`)
+        : ["- No lifecycle events recorded."]),
+      "- Collection, processing facility, destination and final recovery: not connected or evidenced.",
+    ].join("\n")).join("\n\n")
+    : "No saved material twin events are available.";
   const generatedAt = new Date().toLocaleString();
   return [
     "# EcoSnapAI — Smart Recycling Assistant",
@@ -778,6 +934,15 @@ function buildOfflineProjectReport() {
     "",
     "### Saved item list",
     itemLines,
+    "",
+    "## Digital Twin event history",
+    "The software journey is a prototype simulation; recorded events do not prove physical collection or processing.",
+    "",
+    twinDetails,
+    "",
+    "## Environmental impact",
+    "- Measured weight, diverted mass, recovery rate, energy savings and emissions savings: insufficient data to calculate.",
+    "- No verified collection, processing, destination or environmental calculation factor is connected.",
     "",
     "## Architecture, privacy and safety",
     "The browser interface stores records in localStorage. The Node.js server keeps the Gemini API key in the local .env file and serves the AI endpoints. Photo data is sent to Google only after the user selects AI analysis; report generation sends sanitized record metadata, not photos. The prototype does not connect to local recycling rules. Potentially hazardous items need cautious human review and should not be opened, tested, or handled based on an AI suggestion.",
@@ -817,18 +982,32 @@ async function generateProjectReport() {
   $("#report-error").hidden = true;
   button.disabled = true;
   button.classList.add("is-loading");
-  button.textContent = "Building report…";
+  button.textContent = "Building your report…";
+  if (!modelConfigured) {
+    const offlineReport = buildOfflineProjectReport();
+    showGeneratedReport(offlineReport, `Generated locally · based on ${records.length} saved ${records.length === 1 ? "record" : "records"} · Gemini not connected`);
+    $("#report-error").textContent = "Gemini is unavailable. The visual report is still built from your saved records; its AI narrative uses the verified offline version.";
+    $("#report-error").hidden = false;
+    button.classList.remove("is-loading");
+    button.innerHTML = "<span>✳</span> Generate smart report";
+    button.disabled = false;
+    announce("Your report is ready using saved data; Gemini is not connected.");
+    return;
+  }
   try {
     const response = await fetch("/api/report", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        records: records.map(({ category, itemName, status, source, createdAt, events, aiSummary }) => ({
+        records: records.map(({ id, category, itemName, status, source, createdAt, analysisAt, analysisModel, events, aiSummary }) => ({
+          id,
           category,
           itemName,
           status,
           source,
           createdAt,
+          analysisAt,
+          analysisModel,
           events,
           aiSummary,
         })),
@@ -857,8 +1036,8 @@ async function generateProjectReport() {
     announce("Gemini was unavailable, so a complete offline report was generated from your saved records.");
   } finally {
     button.classList.remove("is-loading");
-    button.innerHTML = "<span>✳</span> Generate AI report";
-    button.disabled = !modelConfigured;
+    button.innerHTML = "<span>✳</span> Generate smart report";
+    button.disabled = false;
   }
 }
 
@@ -891,6 +1070,37 @@ function downloadReport() {
   link.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   announce("Report downloaded as Markdown.");
+}
+
+function downloadReportData() {
+  const reportData = {
+    application: "EcoSnapAI Smart Recycling Assistant",
+    reportId: $("#report-id").textContent || null,
+    exportedAt: new Date().toISOString(),
+    scope: "Records saved in this browser only. Image thumbnails are excluded from this data export.",
+    records: records.map(({ photoThumbnail, ...record }) => record),
+  };
+  const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: "application/json;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `ecosnapai-analysis-data-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  announce("Saved analysis data downloaded as JSON.");
+}
+
+function previewReport() {
+  if ($("#report-output").hidden) generateOfflineReport();
+  $("#report-output").scrollIntoView({ behavior: "smooth", block: "start" });
+  $("#report-output").focus({ preventScroll: true });
+}
+
+function printReport() {
+  if ($("#report-output").hidden) generateOfflineReport();
+  window.print();
 }
 
 function clearHistory() {
@@ -966,6 +1176,9 @@ $("#generate-report").addEventListener("click", generateProjectReport);
 $("#generate-offline-report").addEventListener("click", generateOfflineReport);
 $("#copy-report").addEventListener("click", copyReport);
 $("#download-report").addEventListener("click", downloadReport);
+$("#preview-report").addEventListener("click", previewReport);
+$("#print-report").addEventListener("click", printReport);
+$("#download-report-json").addEventListener("click", downloadReportData);
 $(".menu-toggle").addEventListener("click", (event) => {
   const button = event.currentTarget;
   const open = button.getAttribute("aria-expanded") !== "true";
