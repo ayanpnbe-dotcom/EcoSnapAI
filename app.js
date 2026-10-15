@@ -113,6 +113,7 @@ function applyTheme(theme, persist = false) {
     `Color theme: ${themeDetails[theme].name}. Activate to switch to ${themeDetails[theme].next}.`
   );
   $("#theme-toggle").title = `Color theme: ${themeDetails[theme].name}`;
+  resetHeroTilt();
   if (persist) {
     try {
       localStorage.setItem(themeStorageKey, theme);
@@ -127,6 +128,33 @@ function cycleTheme() {
   const current = document.documentElement.dataset.theme;
   const next = themeOrder[(themeOrder.indexOf(current) + 1) % themeOrder.length];
   applyTheme(next, true);
+}
+
+function updateHeroTilt(event) {
+  const heroArt = document.querySelector(".hero-art");
+  if (!heroArt || document.documentElement.dataset.theme !== "3d") return;
+  const bounds = heroArt.getBoundingClientRect();
+  const offsetX = (event.clientX - bounds.left) / bounds.width;
+  const offsetY = (event.clientY - bounds.top) / bounds.height;
+  const rotateY = (offsetX - 0.5) * 18;
+  const rotateX = (0.5 - offsetY) * 18;
+  heroArt.style.setProperty("--tilt-x", `${rotateX.toFixed(2)}deg`);
+  heroArt.style.setProperty("--tilt-y", `${rotateY.toFixed(2)}deg`);
+  heroArt.style.setProperty("--hero-glow-x", `${(offsetX * 100).toFixed(2)}%`);
+  heroArt.style.setProperty("--hero-glow-y", `${(offsetY * 100).toFixed(2)}%`);
+  heroArt.style.transform = `rotateX(${rotateX.toFixed(2)}deg) rotateY(${rotateY.toFixed(2)}deg) rotateZ(-1deg) scale(1.01)`;
+  heroArt.style.filter = "saturate(1.08) contrast(1.02)";
+}
+
+function resetHeroTilt() {
+  const heroArt = document.querySelector(".hero-art");
+  if (!heroArt) return;
+  heroArt.style.setProperty("--tilt-x", "0deg");
+  heroArt.style.setProperty("--tilt-y", "0deg");
+  heroArt.style.setProperty("--hero-glow-x", "50%");
+  heroArt.style.setProperty("--hero-glow-y", "50%");
+  heroArt.style.transform = "none";
+  heroArt.style.filter = "none";
 }
 
 function stopCamera(closePanel = true) {
@@ -1300,6 +1328,12 @@ function clearHistory() {
 }
 
 $("#theme-toggle").addEventListener("click", cycleTheme);
+const heroArt = document.querySelector(".hero-art");
+if (heroArt) {
+  heroArt.addEventListener("pointermove", updateHeroTilt);
+  heroArt.addEventListener("pointerleave", resetHeroTilt);
+  heroArt.addEventListener("pointercancel", resetHeroTilt);
+}
 $("#camera-trigger").addEventListener("click", openCamera);
 $("#capture-photo").addEventListener("click", captureCameraPhoto);
 $("#cancel-camera").addEventListener("click", () => stopCamera());
